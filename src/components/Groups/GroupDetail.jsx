@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
-import { ArrowLeft, UserPlus, Trash2, Shield, User } from 'lucide-react';
+import { ArrowLeft, UserPlus, Trash2, Shield, User, PlusCircle } from 'lucide-react';
 import Card from '../UI/Card';
+import AdvancedExpenseModal from './AdvancedExpenseModal';
 
 const GroupDetail = ({ group, user, onBack }) => {
   const [members, setMembers] = useState([]);
@@ -9,9 +10,11 @@ const GroupDetail = ({ group, user, onBack }) => {
   const [loading, setLoading] = useState(true);
   
   const [inviteEmail, setInviteEmail] = useState('');
-  const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', category: 'Others', date: new Date().toISOString().split('T')[0] });
+  const [showAdvancedModal, setShowAdvancedModal] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState(null);
   const [filterMemberId, setFilterMemberId] = useState('all');
+  const [settleModal, setSettleModal] = useState(null);
+  const [inviteModalText, setInviteModalText] = useState('');
 
   const isOwner = group.myRole === 'owner';
 
@@ -60,38 +63,35 @@ const GroupDetail = ({ group, user, onBack }) => {
     e.preventDefault();
     if (!inviteEmail.trim() || !isOwner) return;
     try {
+      const email = inviteEmail.trim();
       const { data, error } = await supabase.rpc('invite_user_by_email', {
         p_group_id: group.id,
-        p_email: inviteEmail.trim()
+        p_email: email
       });
       if (error) throw error;
+      
+      const appUrl = window.location.origin;
+      const text = `Hey! I've added you to our expense group "${group.name}" on Pocket to track shared expenses.\n\nPlease sign up or log in here to view the ledger:\n${appUrl}\n\nMake sure to sign up with this exact email address (${email}) to access the group!\n\nCheers!`;
+      
+      setInviteModalText(text);
       setInviteEmail('');
-      alert('User invited successfully!');
       fetchData();
     } catch (error) {
       alert(error.message);
     }
   };
 
-  const handleAddExpense = async (e) => {
-    e.preventDefault();
-    if (!expenseForm.amount || !expenseForm.description) return;
+  const copyToClipboard = async () => {
     try {
-      const { error } = await supabase.from('expense_group_transactions').insert({
-        group_id: group.id,
-        paid_by: user.id,
-        description: expenseForm.description,
-        amount: parseFloat(expenseForm.amount),
-        category: expenseForm.category,
-        txn_date: expenseForm.date
-      });
-      if (error) throw error;
-      setExpenseForm({ ...expenseForm, description: '', amount: '' });
-      fetchData(); // Instant local sync
-    } catch (error) {
-      alert('Failed to add expense');
+      await navigator.clipboard.writeText(inviteModalText);
+      alert('Invite text copied to clipboard! Paste it in WhatsApp, Gmail, or any messaging app.');
+      setInviteModalText('');
+    } catch (err) {
+      alert('Failed to copy automatically, you can still highlight and copy the text!');
     }
   };
+
+  const getMemberKey = (m) => m.user_id || m.member_email;
 
   const confirmDeleteExpense = async () => {
     if (!expenseToDelete) return;
@@ -100,13 +100,126 @@ const GroupDetail = ({ group, user, onBack }) => {
     fetchData(); // Instant local sync
   };
 
+  const realExpenses = expenses.filter(e => e.category !== 'Settlement');
+  const settlements = expenses.filter(e => e.category === 'Settlement');
+
   const filteredExpenses = expenses.filter(exp => 
     filterMemberId === 'all' ? true : exp.paid_by === filterMemberId
   );
 
-  const getMemberName = (uid) => {
-    if (uid === user.id) return 'You';
-    const match = members.find(m => m.user_id === uid);
+  const totalMembers = members.length;
+
+  const balances = {};
+  members.forEach(m => {
+    const key = getMemberKey(m);
+    balances[key] = {
+      key: key,
+      user_id: m.user_id,
+      name: m.member_name || m.member_email?.split('@')[0] || 'Unknown',
+      paid: 0,
+      balance: 0
+    };
+  });
+
+  realExpenses.forEach(exp => {
+    const amt = Number(exp.amount) || 0;
+    
+    if (exp.advanced_split) {
+       // --- New Advanced Split Config ---
+       const split = exp.advanced_split;
+       (split.paid || []).forEach(p => {
+         if (balances[p.key]) {
+           balances[p.key].paid += Number(p.amount);
+           balances[p.key].balance += Number(p.amount);
+         }
+       });
+       (split.owed || []).forEach(o => {
+         if (balances[o.key]) {
+           balances[o.key].balance -= Number(o.amount);
+         }
+       });
+    } else {
+       // --- Legacy Uniform Split Config (Backwards compatibility) ---
+       const share = totalMembers > 0 ? amt / totalMembers : 0;
+       
+       // Who paid?
+       if (balances[exp.paid_by]) {
+         balances[exp.paid_by].paid += amt;
+         balances[exp.paid_by].balance += amt;
+       }
+       
+       // Everyone owes equally
+       Object.values(balances).forEach(b => {
+         b.balance -= share;
+       });
+    }
+  });
+
+  settlements.forEach(settle => {
+    const fromId = settle.paid_by;
+    const toMatch = settle.description.match(/SETTLEMENT_TO:(.+)/);
+    if (toMatch && toMatch[1]) {
+      const toId = toMatch[1];
+      const amount = Number(settle.amount);
+      if (balances[fromId]) balances[fromId].balance += amount;
+      if (balances[toId]) balances[toId].balance -= amount;
+    }
+  });
+
+  const debtors = [];
+  const creditors = [];
+
+  Object.values(balances).forEach(b => {
+    if (b.balance < -0.01) debtors.push({ ...b });
+    else if (b.balance > 0.01) creditors.push({ ...b });
+  });
+
+  debtors.sort((a, b) => a.balance - b.balance);
+  creditors.sort((a, b) => b.balance - a.balance);
+
+  const suggestedSettlements = [];
+  let i = 0; let j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const debtor = debtors[i];
+    const creditor = creditors[j];
+    const amount = Math.min(Math.abs(debtor.balance), creditor.balance);
+    
+    suggestedSettlements.push({
+      from: debtor.key,
+      fromName: debtor.name,
+      to: creditor.key,
+      toName: creditor.name,
+      amount: amount
+    });
+
+    debtor.balance += amount;
+    creditor.balance -= amount;
+    if (Math.abs(debtor.balance) < 0.01) i++;
+    if (creditor.balance < 0.01) j++;
+  }
+
+  const handleSettleUp = async () => {
+    if (!settleModal) return;
+    try {
+      const { error } = await supabase.from('expense_group_transactions').insert({
+        group_id: group.id,
+        paid_by: settleModal.from,
+        description: `SETTLEMENT_TO:${settleModal.to}`,
+        amount: parseFloat(settleModal.amount),
+        category: 'Settlement',
+        txn_date: new Date().toISOString().split('T')[0]
+      });
+      if (error) throw error;
+      setSettleModal(null);
+      fetchData();
+    } catch (error) {
+      alert('Failed to record settlement');
+    }
+  };
+
+  const getMemberName = (key) => {
+    if (key === user.id) return 'You';
+    const match = members.find(m => m.user_id === key || m.member_email === key);
     return match?.member_name || match?.member_email?.split('@')[0] || 'Unknown Member';
   };
 
@@ -124,34 +237,14 @@ const GroupDetail = ({ group, user, onBack }) => {
 
       <div className="group-layout">
         <div className="expenses-section">
-          <Card className="add-expense-card">
-            <h3>Add Expense</h3>
-            <form className="add-expense-form" onSubmit={handleAddExpense}>
-              <input 
-                type="text" 
-                className="full-row"
-                placeholder="What was this for? (e.g. Dinner, Rent)" 
-                value={expenseForm.description}
-                onChange={e => setExpenseForm({...expenseForm, description: e.target.value})}
-                required
-              />
-              <input 
-                type="number" 
-                placeholder="Amount (₹)" 
-                value={expenseForm.amount}
-                onChange={e => setExpenseForm({...expenseForm, amount: e.target.value})}
-                required
-              />
-              <input 
-                type="date" 
-                value={expenseForm.date}
-                onChange={e => setExpenseForm({...expenseForm, date: e.target.value})}
-                required
-              />
-              <div className="full-row">
-                <button type="submit" className="btn-primary" style={{width:'100%'}}>Add to Group Ledger</button>
-              </div>
-            </form>
+          <Card className="add-expense-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px' }}>
+            <h3 style={{ marginBottom: '16px' }}>Record an Expense</h3>
+            <p style={{ color: 'var(--text-muted)', textAlign: 'center', fontSize: '14px', marginBottom: '24px' }}>
+              Add a new group expense, specify exactly who paid, and instantly decide how to split the cost among members.
+            </p>
+            <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setShowAdvancedModal(true)}>
+              <PlusCircle size={20} /> Advanced Expense Entry
+            </button>
           </Card>
 
           <Card className="transactions-card">
@@ -183,7 +276,11 @@ const GroupDetail = ({ group, user, onBack }) => {
               {filteredExpenses.map(exp => (
                 <div key={exp.id} className="group-txn-item">
                   <div>
-                    <span style={{ fontWeight: 600, display: 'block' }}>{exp.description}</span>
+                    <span style={{ fontWeight: 600, display: 'block', color: exp.category === 'Settlement' ? '#00c853' : 'inherit' }}>
+                      {exp.category === 'Settlement' 
+                        ? `Payment to ${getMemberName(exp.description.replace('SETTLEMENT_TO:', ''))}` 
+                        : exp.description}
+                    </span>
                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                       {exp.txn_date} • Paid by <strong style={{color:'var(--text)'}}>{getMemberName(exp.paid_by)}</strong>
                     </span>
@@ -239,6 +336,46 @@ const GroupDetail = ({ group, user, onBack }) => {
               </div>
             )}
           </Card>
+
+          <Card style={{ marginTop: '16px' }}>
+            <h3>Balances & Settlements</h3>
+            
+            {suggestedSettlements.length === 0 ? (
+              <p className="text-muted" style={{ marginTop: '16px' }}>All settled up!</p>
+            ) : (
+              <div style={{ marginTop: '16px' }}>
+                <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-muted)' }}>Suggested payments</h4>
+                {suggestedSettlements.map((s, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '14px' }}>
+                      <strong>{s.from === user.id ? 'You' : s.fromName}</strong> owes <strong>{s.to === user.id ? 'You' : s.toName}</strong> 
+                      <div style={{ color: '#f44336', fontWeight: 'bold' }}>₹{s.amount.toFixed(2)}</div>
+                    </div>
+                    {/* Allow either party to settle it for convenience */}
+                    <button 
+                      className="btn-primary" 
+                      style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--primary)' }}
+                      onClick={() => setSettleModal(s)}
+                    >
+                      Settle Up
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div style={{ marginTop: '16px' }}>
+               <h4 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-muted)' }}>Member Balances</h4>
+               {Object.values(balances).map(b => (
+                 <div key={b.key} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px' }}>
+                    <span>{b.user_id === user.id ? 'You' : b.name}</span>
+                    <strong style={{ color: b.balance > 0.01 ? '#00c853' : b.balance < -0.01 ? '#f44336' : 'var(--text-muted)'}}>
+                      {b.balance > 0.01 ? '+' : ''}{b.balance.toFixed(2)}
+                    </strong>
+                 </div>
+               ))}
+            </div>
+          </Card>
         </div>
       </div>
 
@@ -246,8 +383,8 @@ const GroupDetail = ({ group, user, onBack }) => {
       {expenseToDelete && (
         <div className="modal-overlay">
           <div className="delete-modal">
-            <h3>Delete Expense</h3>
-            <p>Are you sure you want to delete the "{expenseToDelete.description}" expense of ₹{expenseToDelete.amount} from the group ledger? This action cannot be undone.</p>
+            <h3>Delete Transaction</h3>
+            <p>Are you sure you want to delete this transaction of ₹{expenseToDelete.amount}? This action cannot be undone.</p>
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setExpenseToDelete(null)}>Cancel</button>
               <button className="btn-danger" onClick={confirmDeleteExpense}>Confirm Delete</button>
@@ -255,6 +392,49 @@ const GroupDetail = ({ group, user, onBack }) => {
           </div>
         </div>
       )}
+
+      {/* Settle Modal */}
+      {settleModal && (
+        <div className="modal-overlay">
+          <div className="delete-modal">
+            <h3>Confirm Settlement</h3>
+            <p>Record a payment of <strong>₹{settleModal.amount.toFixed(2)}</strong> from {settleModal.from === user.id ? 'You' : settleModal.fromName} to {settleModal.to === user.id ? 'You' : settleModal.toName}?</p>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setSettleModal(null)}>Cancel</button>
+              <button className="btn-primary" onClick={handleSettleUp}>Record Payment</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite Link Modal */}
+      {inviteModalText && (
+        <div className="modal-overlay">
+          <div className="delete-modal" style={{ maxWidth: '500px' }}>
+            <h3>User Added to Ledger!</h3>
+            <p>They are now in the group. To let them know, copy the message below and send it to them via WhatsApp or email.</p>
+            <textarea 
+              readOnly 
+              value={inviteModalText} 
+              style={{ width: '100%', height: '150px', padding: '12px', background: 'rgba(0,0,0,0.1)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text)', marginTop: '12px', resize: 'none' }}
+            />
+            <div className="modal-actions" style={{ marginTop: '20px' }}>
+              <button className="btn-secondary" onClick={() => setInviteModalText('')}>Close</button>
+              <button className="btn-primary" onClick={copyToClipboard}>Copy to Clipboard</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Advanced Expense Split Modal */}
+      <AdvancedExpenseModal 
+        show={showAdvancedModal}
+        onClose={() => setShowAdvancedModal(false)}
+        group={group}
+        members={members}
+        user={user}
+        onExpenseAdded={fetchData}
+      />
     </div>
   );
 };
