@@ -1,0 +1,146 @@
+.merchant-normalization {
+  padding: 16px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.merchants-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.search-bar {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-bar svg {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+}
+
+.search-bar input {
+  padding-left: 36px;
+  width: 100%;
+}
+
+.reset-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+  font-weight: 600;
+  border-radius: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  font-size: 0.8125rem;
+}
+
+.merchants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.merchant-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+}
+
+.merchant-original {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.store-icon {
+  color: var(--primary);
+  opacity: 0.7;
+}
+
+.merchant-name-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.original-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.original-val {
+  font-weight: 700;
+  color: #FFF;
+  font-size: 1rem;
+}
+
+.merchant-arrow {
+  color: var(--text-muted);
+  opacity: 0.3;
+}
+
+.merchant-override {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.merchant-override input {
+  width: 100%;
+  background: var(--surface-light);
+  border-color: var(--border);
+  font-weight: 600;
+  color: var(--primary);
+  padding-right: 36px;
+}
+
+.merchant-override input:focus {
+  border-color: var(--primary);
+}
+
+.reset-single {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.no-merchants {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+}
+
+.normalization-footer {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .merchant-row {
+     flex-direction: column;
+     align-items: stretch;
+     gap: 12px;
+  }
+  .merchant-arrow {
+     transform: rotate(90deg);
+     display: flex;
+     justify-content: center;
+  }
+}

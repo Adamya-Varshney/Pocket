@@ -1,0 +1,363 @@
+.history-container {
+  padding: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.history-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.history-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.history-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 16px;
+  width: 100%;
+  max-width: 400px;
+  color: var(--text-muted);
+}
+
+.search-bar input {
+  background: transparent;
+  border: none;
+  font-size: 0.875rem;
+  color: var(--text);
+  width: 100%;
+  outline: none;
+}
+
+/* Filter Board */
+.filter-board {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter-group label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-radius: 100px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chip:hover {
+  background: var(--border);
+  color: #FFF;
+}
+
+.chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #000;
+}
+
+.chip.mini {
+  padding: 4px 12px;
+  font-size: 0.75rem;
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+}
+
+.filter-group select {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  outline: none;
+}
+
+/* Summary Card */
+.history-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px !important;
+  margin-bottom: 32px;
+  background: linear-gradient(135deg, rgba(255, 107, 0, 0.05) 0%, rgba(255, 107, 0, 0) 100%);
+  border: 1px dashed var(--primary-muted) !important;
+}
+
+.summary-item {
+  flex: 1;
+}
+
+.summary-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: block;
+}
+
+.summary-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primary);
+  margin-top: 4px;
+}
+
+.summary-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--border);
+}
+
+.summary-info {
+  background: rgba(255, 107, 0, 0.1);
+  color: var(--primary);
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.history-group {
+  margin-bottom: 32px;
+}
+
+.group-date {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.txn-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s;
+}
+
+.txn-card:hover {
+  transform: translateX(4px);
+  border-color: var(--surface-light);
+}
+
+.txn-type-indicator {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.txn-type-indicator.expense {
+  background: rgba(255, 107, 0, 0.1);
+  color: var(--primary);
+}
+
+.txn-type-indicator.income {
+  background: rgba(0, 200, 83, 0.1);
+  color: var(--success);
+}
+
+.txn-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.txn-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.txn-label {
+  font-weight: 600;
+  color: #FFF;
+  font-size: 0.9375rem;
+}
+
+.txn-val {
+  font-weight: 700;
+}
+
+.txn-val.expense { color: var(--text); }
+.txn-val.income { color: var(--success); }
+
+.txn-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.txn-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.txn-payback-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.txn-payback-tag.to-me {
+  color: #8B5CF6;
+}
+
+.txn-payback-tag.to-me.settled {
+  color: var(--success);
+  opacity: 0.8;
+}
+
+.txn-payback-tag.by-me {
+  color: #EC4899;
+}
+
+.income-badge {
+  background: rgba(0, 200, 83, 0.1);
+  color: var(--success);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.liability-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.settle-btn {
+  background: var(--surface-light);
+  border: 1px solid var(--success);
+  color: var(--success);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settle-btn:hover {
+  background: var(--success);
+  color: #000;
+}
+
+.txn-more {
+  background: transparent;
+  color: var(--text-muted);
+  padding: 4px;
+}
+
+.empty-history {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-muted);
+}
+
+/* ── Sort inline select ── */
+.sort-select-inline {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  outline: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+/* ── Density-aware transaction card ── */
+.txn-card {
+  display: flex;
+  align-items: center;
+  gap: var(--txn-row-gap, 12px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: var(--txn-row-padding-v, 14px) var(--txn-row-padding-h, 16px);
+  font-size: var(--txn-font-size, 14px);
+  margin-bottom: 8px;
+  transition: background 0.15s;
+}
+.txn-card:hover {
+  background: var(--surface-light);
+}

@@ -1,0 +1,17 @@
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+.card-body {
+  width: 100%;
+}

@@ -1,0 +1,255 @@
+.expense-form-card {
+  max-width: 600px;
+  margin: 20px auto;
+}
+
+.amount-input-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 30px 0;
+  position: relative;
+}
+
+.amount-input-wrapper.expense .currency-icon {
+  color: var(--primary);
+}
+
+.amount-input-wrapper.income .currency-icon {
+  color: var(--success);
+}
+
+/* Type Toggle */
+.type-toggle {
+  display: flex;
+  background: var(--surface-light);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+}
+
+.type-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: transparent;
+  transition: all 0.2s;
+}
+
+.type-btn.active.expense {
+  background: var(--primary);
+  color: #FFF;
+}
+
+.type-btn.active.income {
+  background: var(--success);
+  color: #FFF;
+}
+
+.submit-btn.income:hover {
+  background: #00A343;
+}
+
+.income-sub-toggle {
+  margin-bottom: 0;
+  border: 1px solid var(--success);
+}
+
+.income-sub-toggle .type-btn.active.income {
+  background: var(--success);
+}
+
+.amount-input {
+  font-size: 3rem;
+  font-weight: 800;
+  text-align: center;
+  width: 100%;
+  background: transparent !important;
+  border: none !important;
+  padding: 10px 60px !important;
+  color: #FFF;
+}
+
+.amount-input::placeholder {
+  color: var(--surface-light);
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Category Grid */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.category-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.category-item:hover {
+  border-color: var(--primary);
+  background: rgba(255, 107, 0, 0.05);
+}
+
+.category-item.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #FFF;
+}
+
+.cat-icon {
+  font-size: 1.5rem;
+}
+
+.cat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.category-item.add-new {
+  border-style: dashed;
+  background: transparent;
+}
+
+.category-item.add-new:hover {
+  background: var(--surface-light);
+  border-style: solid;
+}
+
+.add-category-inline {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  background: var(--surface-light);
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.add-category-inline input {
+  flex: 1;
+  padding: 8px 12px;
+}
+
+/* Row elements */
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-row > div {
+  flex: 1;
+}
+
+/* Payback Section */
+.payback-section, .debt-section {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  border: 1px dashed var(--border);
+  transition: all 0.3s;
+}
+
+.payback-section:has(input:checked), .debt-section:has(input:checked) {
+  border-style: solid;
+  border-color: var(--primary);
+  background: rgba(255, 107, 0, 0.05);
+}
+
+.extra-features {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0;
+}
+
+.checkbox-label input {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.payback-details {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+
+.payback-options {
+  display: flex;
+  gap: 12px;
+}
+
+.payback-options select {
+  flex: 2;
+}
+
+.payback-options input {
+  flex: 1;
+}
+
+.submit-btn {
+  margin-top: 30px;
+}
+
+@media (max-width: 480px) {
+  .category-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .amount-input {
+    font-size: 2.2rem;
+  }
+}

@@ -1,0 +1,134 @@
+.profile-container {
+  padding: 24px;
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.profile-header {
+  margin-bottom: 32px;
+}
+
+.profile-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.profile-subtitle {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.profile-segments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.segment-item {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.segment-item:hover {
+  border-color: var(--primary);
+  transform: translateX(4px);
+  background: var(--surface-light);
+}
+
+.segment-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+}
+
+.segment-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.segment-name {
+  font-weight: 600;
+  color: #FFF;
+  font-size: 1rem;
+}
+
+.segment-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.segment-arrow {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.profile-footer {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.sign-out-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+  font-weight: 600;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.sign-out-btn:hover {
+  background: #EF4444;
+  color: #FFF;
+}
+
+.version-info {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Subpage Styles */
+.profile-subpage {
+  width: 100%;
+  min-height: 100vh;
+  padding-bottom: 100px;
+}
+
+.profile-subpage-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.back-btn {
+  background: transparent;
+  color: var(--text);
+  padding: 4px;
+}
+
+.profile-subpage-header h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}

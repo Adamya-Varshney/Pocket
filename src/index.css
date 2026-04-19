@@ -1,0 +1,254 @@
+:root {
+  /* Colors - Dark Theme (default) */
+  --primary: #FF6B00;
+  --primary-glow: rgba(255, 107, 0, 0.4);
+  --secondary: #2D31FA;
+  --bg: #0B0B0F;
+  --surface: #16161E;
+  --surface-light: #21212B;
+  --text: #E0E0E6;
+  --text-muted: #8E8E9E;
+  --accent: #00E0FF;
+  --success: #00C853;
+  --danger: #FF3D00;
+  --border: rgba(255, 255, 255, 0.08);
+
+  /* Typography */
+  --font-main: 'Inter', system-ui, -apple-system, sans-serif;
+  
+  /* Shadow & Blur */
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --glass: blur(12px) saturate(180%);
+
+  /* Density - default comfortable */
+  --txn-row-padding-v: 14px;
+  --txn-row-padding-h: 16px;
+  --txn-row-gap: 12px;
+  --txn-font-size: 14px;
+}
+
+/* ── Light Theme ─────────────────────────────────── */
+[data-theme='light'] {
+  --bg:           #F0F2F7;
+  --surface:      #FFFFFF;
+  --surface-light: #E8EBF2;
+  --text:         #111827;
+  --text-muted:   #6B7280;
+  --border:       rgba(0, 0, 0, 0.09);
+  --shadow-sm:    0 2px 8px rgba(0, 0, 0, 0.07);
+  --shadow-md:    0 8px 24px rgba(0, 0, 0, 0.10);
+  color-scheme:   light;
+}
+
+/* ── Text: Override all hardcoded #FFF to dark ── */
+[data-theme='light'] h1,
+[data-theme='light'] h2,
+[data-theme='light'] h3,
+[data-theme='light'] h4,
+[data-theme='light'] h5,
+[data-theme='light'] p,
+[data-theme='light'] span:not(.acc-status-badge):not(.income-badge):not(.txn-payback-tag) {
+  color: var(--text);
+}
+[data-theme='light'] .text-muted,
+[data-theme='light'] .stat-label,
+[data-theme='light'] .mini-label,
+[data-theme='light'] .history-subtitle,
+[data-theme='light'] .dashboard-subtitle,
+[data-theme='light'] .txn-meta,
+[data-theme='light'] .helper-text,
+[data-theme='light'] .bank-name,
+[data-theme='light'] .meta-label {
+  color: var(--text-muted) !important;
+}
+
+/* ── Inputs & Selects ── */
+[data-theme='light'] input,
+[data-theme='light'] select,
+[data-theme='light'] textarea {
+  background: #FFFFFF;
+  color: #111827;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+[data-theme='light'] input::placeholder { color: #9CA3AF; }
+
+/* ── Cards ── */
+[data-theme='light'] .card {
+  background: #FFFFFF;
+  border-color: rgba(0, 0, 0, 0.07);
+}
+
+/* ── Navigation bar ── */
+[data-theme='light'] .nav-bar,
+[data-theme='light'] .bottom-nav {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(16px);
+}
+[data-theme='light'] .nav-item { color: var(--text-muted); }
+[data-theme='light'] .nav-item.active { color: var(--primary); }
+
+/* ── Buttons ── */
+[data-theme='light'] button:not(.primary-btn):not(.type-btn.active):not(.chip.active):not(.day-btn.active):not([class*='settle']):not([class*='category-item']):not(.add-account-card) {
+  color: var(--text);
+}
+[data-theme='light'] .sort-select,
+[data-theme='light'] .sort-select-inline { color: #111827; background: transparent; }
+
+/* ── Stat cards ── */
+[data-theme='light'] .stat-value { color: #111827 !important; }
+[data-theme='light'] .mini-val   { color: #111827 !important; }
+[data-theme='light'] .acc-name   { color: #111827 !important; }
+[data-theme='light'] .stat-num   { color: #111827 !important; }
+
+/* ── Transaction rows ── */
+[data-theme='light'] .txn-label,
+[data-theme='light'] .txn-desc { color: #111827 !important; }
+
+/* ── Profile section specifics ── */
+[data-theme='light'] .salary-banner-amount { color: var(--primary) !important; }
+[data-theme='light'] .current-salary-banner {
+  background: linear-gradient(135deg, rgba(255, 107, 0, 0.08), rgba(255, 107, 0, 0.03));
+  border-color: rgba(255, 107, 0, 0.25);
+}
+[data-theme='light'] .day-btn { background: #E8EBF2; color: #111827; }
+[data-theme='light'] .day-btn.active { background: var(--primary); color: #FFF; }
+
+/* ── Loading screen ── */
+[data-theme='light'] .loading-screen { color: #111827; background: var(--bg); }
+
+/* Ensure primary brand color NEVER changes */
+[data-theme='light'] .primary-btn,
+[data-theme='light'] button[class*='primary'],
+[data-theme='light'] .active { color: inherit; }
+
+[data-theme='light'] input,
+[data-theme='light'] select { background: #F0F2F7; color: #1A1A2E; border-color: rgba(0,0,0,0.12); }
+
+
+/* ── Density Variants ────────────────────────────── */
+[data-density='compact'] {
+  --txn-row-padding-v: 8px;
+  --txn-row-padding-h: 12px;
+  --txn-row-gap: 8px;
+  --txn-font-size: 13px;
+}
+[data-density='spacious'] {
+  --txn-row-padding-v: 20px;
+  --txn-row-padding-h: 20px;
+  --txn-row-gap: 16px;
+  --txn-font-size: 15px;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-main);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Base Styles */
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 700;
+  color: #FFF;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+input, select {
+  font-family: inherit;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 16px;
+  border-radius: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input:focus {
+  border-color: var(--primary);
+}
+
+/* Glassmorphism Card Base */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow-md);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-light);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.loading-screen {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: #FFF;
+  gap: 20px;
+}
+
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid var(--surface-light);
+  border-bottom-color: var(--primary);
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
