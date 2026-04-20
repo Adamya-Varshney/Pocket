@@ -9,100 +9,9 @@ import { getCategoryIcon } from '../../utils/categoryIcons';
 import Card from '../UI/Card';
 import Button from '../UI/Button';
 import './StatementReview.css';
+import { normalizeMerchant, suggestCategory } from '../../utils/merchantUtils';
 
-// ─── MERCHANT AUTO-NORMALIZER ─────────────────────────────────────────────────
-// Translates raw bank description strings into clean merchant names
-const MERCHANT_RULES = [
-  [/amzn|amazon/i,          'Amazon'],
-  [/zomato/i,               'Zomato'],
-  [/swiggy/i,               'Swiggy'],
-  [/uber(?!.*eats)/i,       'Uber'],
-  [/ola\s*(?:cab|ride|money)?/i, 'Ola'],
-  [/netflix/i,              'Netflix'],
-  [/spotify/i,              'Spotify'],
-  [/youtube|yt\s*premium/i, 'YouTube Premium'],
-  [/hotstar|disney/i,       'Disney+ Hotstar'],
-  [/prime\s*video|primevideo/i, 'Amazon Prime Video'],
-  [/jio/i,                  'Jio'],
-  [/airtel/i,               'Airtel'],
-  [/bsnl/i,                 'BSNL'],
-  [/vi\b|vodafone/i,        'Vi / Vodafone'],
-  [/google\s*pay|gpay/i,    'Google Pay'],
-  [/phonepe/i,              'PhonePe'],
-  [/paytm/i,                'Paytm'],
-  [/nykaa/i,                'Nykaa'],
-  [/flipkart/i,             'Flipkart'],
-  [/myntra/i,               'Myntra'],
-  [/bigbasket/i,            'BigBasket'],
-  [/grofers|blinkit/i,      'Blinkit'],
-  [/instamart|swiggy\s*instamart/i, 'Instamart'],
-  [/dunzo/i,                'Dunzo'],
-  [/zepto/i,                'Zepto'],
-  [/rapido/i,               'Rapido'],
-  [/irctc/i,                'IRCTC'],
-  [/redbus/i,               'RedBus'],
-  [/makemytrip|mmt/i,       'MakeMyTrip'],
-  [/goibibo/i,              'Goibibo'],
-  [/bookmyshow/i,           'BookMyShow'],
-  [/hdfc/i,                 'HDFC Bank'],
-  [/icici/i,                'ICICI Bank'],
-  [/sbi\s*mbs|sbimb/i,      'SBI'],
-  [/axis\s*bank/i,          'Axis Bank'],
-  [/kotak/i,                'Kotak Bank'],
-  [/indusind/i,             'IndusInd Bank'],
-  [/neft|rtgs|imps/i,       null],   // Keep original for fund transfers
-];
-
-// Auto-suggest category key based on normalized merchant name
-const MERCHANT_CATEGORY_MAP = {
-  'amazon':             'shopping',
-  'flipkart':           'shopping',
-  'myntra':             'shopping',
-  'nykaa':              'beauty',
-  'zomato':             'food',
-  'swiggy':             'food',
-  'instamart':          'grocery',
-  'blinkit':            'grocery',
-  'bigbasket':          'grocery',
-  'zepto':              'grocery',
-  'dunzo':              'grocery',
-  'uber':               'transport',
-  'ola':                'transport',
-  'rapido':             'transport',
-  'irctc':              'train',
-  'redbus':             'bus',
-  'makemytrip':         'travel',
-  'goibibo':            'travel',
-  'bookmyshow':         'entertainment',
-  'netflix':            'subscription',
-  'spotify':            'subscription',
-  'youtube premium':    'subscription',
-  'disney+ hotstar':    'subscription',
-  'amazon prime video': 'subscription',
-  'jio':                'phone',
-  'airtel':             'phone',
-  'vi / vodafone':      'phone',
-  'bsnl':               'phone',
-};
-
-const normalizeMerchant = (raw = '') => {
-  for (const [pattern, name] of MERCHANT_RULES) {
-    if (pattern.test(raw)) return name || raw;
-  }
-  // Trim common bank noise (UPI ref codes, order numbers)
-  return raw
-    .replace(/\b[A-Z0-9]{8,}\b/g, '')  // Remove long alphanumeric codes
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 60) || raw;
-};
-
-const suggestCategoryKey = (merchantName = '') => {
-  const lower = merchantName.toLowerCase();
-  return MERCHANT_CATEGORY_MAP[lower] || null;
-};
-
-// ─── ROW EDITOR ───────────────────────────────────────────────────────────────
+// RowEditor confirms rows and sets mapped_txn_id.
 const RowEditor = ({ row, edit, categories, onChange, onConfirm, onSkip, isConfirming }) => {
   const normalized = useMemo(() => normalizeMerchant(row.description), [row.description]);
   const isExpense = edit.type === 'expense';
@@ -179,7 +88,7 @@ const RowEditor = ({ row, edit, categories, onChange, onConfirm, onSkip, isConfi
 };
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-const StatementReview = ({ categories = [], onDone }) => {
+const StatementReview = ({ categories = [], onDone, merchantOverrides = {} }) => {
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [edits, setEdits] = useState({});
@@ -195,33 +104,37 @@ const StatementReview = ({ categories = [], onDone }) => {
 
     const { data, error } = await supabase
       .from('statement_rows')
-      .select('*, bank_statements(filename)')
+      .select(`
+        *,
+        bank_statements(filename, account_id, accounts(name, bank_name))
+      `)
       .eq('user_id', user.id)
-      .eq('status', 'pending')
-      .order('txn_date', { ascending: false });
+      .eq('status', 'pending');
 
     if (error) { console.error('StatementReview fetch error:', error); setLoading(false); return; }
 
-    const pending = data || [];
-
-    // Build initial edit state: auto-detect type + merchant + suggested category
-    const initialEdits = {};
-    pending.forEach(row => {
-      const normalized = normalizeMerchant(row.description);
-      const suggestedKey = suggestCategoryKey(normalized);
-      const suggestedCat = suggestedKey
-        ? categories.find(c => c.icon === suggestedKey || c.name.toLowerCase().startsWith(suggestedKey))
-        : null;
-
-      initialEdits[row.id] = {
-        type: row.debit_amount > 0 ? 'expense' : 'income',
-        amount: row.debit_amount > 0 ? row.debit_amount : row.credit_amount,
-        description: normalized,
-        categoryId: suggestedCat?.id || null,
+    // Initial pass: normalize merchants & suggest categories
+    const hydrated = (data || []).map(row => {
+      const normalized = normalizeMerchant(row.description, merchantOverrides);
+      const suggestedCat = suggestCategory(normalized, categories);
+      return {
+        ...row,
+        normalized_description: normalized,
+        suggested_category_id: suggestedCat?.id || null
       };
     });
 
-    setRows(pending);
+    const initialEdits = {};
+    hydrated.forEach(row => {
+      initialEdits[row.id] = {
+        type: row.debit_amount > 0 ? 'expense' : 'income',
+        amount: row.debit_amount > 0 ? row.debit_amount : row.credit_amount,
+        description: row.normalized_description,
+        categoryId: row.suggested_category_id,
+      };
+    });
+
+    setRows(hydrated);
     setEdits(initialEdits);
     setLoading(false);
   };

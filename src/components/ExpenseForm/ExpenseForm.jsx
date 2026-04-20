@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   IndianRupee, Calendar, Tag, CreditCard, UserPlus, Clock,
-  ArrowDownCircle, ArrowUpCircle, HandCoins
+  ArrowDownCircle, ArrowUpCircle, HandCoins,
+  Camera, Sparkles, Loader
 } from 'lucide-react';
 import Card from '../UI/Card';
 import Button from '../UI/Button';
@@ -9,12 +10,17 @@ import './ExpenseForm.css';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { getCategoryIcon } from '../../utils/categoryIcons';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { normalizeMerchant, suggestCategory } from '../../utils/merchantUtils';
 
 const MODES = ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Net Banking', 'Cheque'];
 
 const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryAdded }) => {
   const { user } = useAuth();
+  const fileRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
 
@@ -36,6 +42,25 @@ const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryA
     debtEntity: '',
     lentEntity: ''
   });
+
+  // ── REAL-TIME AUTO-CATEGORIZATION ─────────────────────────────
+  // Automatically suggest a category as the user types
+  useEffect(() => {
+    if (!formData.description || formData.description.length < 3) return;
+    
+    // Only auto-suggest if no category is picked yet, or if the current one was an auto-pick
+    const merchantOverrides = user?.preferences?.merchantOverrides || {};
+    const normalized = normalizeMerchant(formData.description, merchantOverrides);
+    const suggested = suggestCategory(normalized, categories);
+
+    if (suggested && (!formData.category_id || formData._autoPicked)) {
+      setFormData(prev => ({
+        ...prev,
+        category_id: suggested.id,
+        _autoPicked: true // Mark as auto-picked so we can allow user to override
+      }));
+    }
+  }, [formData.description]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -75,6 +100,78 @@ const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryA
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleSnapshotUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      setScanError('Configuration Error: Gemini API key not found in .env');
+      return;
+    }
+
+    try {
+      setIsScanning(true);
+      setScanError('');
+
+      // Read file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+      });
+      reader.readAsDataURL(file);
+      const base64 = await base64Promise;
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `You are an expert financial receipt and payment screenshot data extractor.
+Analyze this payment snippet (like an offline receipt, Google Pay, or PhonePe completion screen).
+Extract the details into a STRICT JSON object with no wrapping markdown or trailing comments.
+Keys must be exactly:
+- "amount": number (extract just the numeric value paid)
+- "date": string (format as "YYYY-MM-DD", fallback to empty string if missing)
+- "time": string (format as "HH:MM", 24hr, fallback to empty string if missing)
+- "description": string (the merchant name, person paid, or user note)
+- "paymentMode": string (analyze the image and map precisely to ONE of these: "UPI", "Cash", "Credit Card", "Debit Card", "Net Banking", "Cheque". Default to "UPI" if it's GPay/PhonePe and you can't tell, "Cash" if physical receipt unless stated otherwise)
+
+Return ONLY JSON.`;
+
+      const result = await model.generateContent([
+        prompt,
+        { inlineData: { data: base64, mimeType: file.type } }
+      ]);
+      
+      const responseText = result.response.text();
+      const cleanJson = responseText.replace(/^```[a-z]*\n?/i, '').replace(/```$/i, '').trim();
+      const data = JSON.parse(cleanJson);
+
+      // Hydrate form
+      const merchantOverrides = user?.preferences?.merchantOverrides || {};
+      const normalized = normalizeMerchant(data.description || '', merchantOverrides);
+      const suggestedCat = suggestCategory(normalized, categories);
+
+      setFormData(prev => ({
+        ...prev,
+        amount: data.amount ? String(data.amount) : prev.amount,
+        date: data.date || prev.date,
+        time: data.time || prev.time,
+        description: normalized || data.description || prev.description,
+        paymentMode: MODES.includes(data.paymentMode) ? data.paymentMode : prev.paymentMode,
+        category_id: suggestedCat?.id || prev.category_id
+      }));
+
+    } catch (err) {
+      console.error("AI scanning failed:", err);
+      setScanError(err.message || 'Failed to read receipt. Please enter manually.');
+    } finally {
+      setIsScanning(false);
+      // Reset input so they can scan the same file again if they want
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
@@ -172,8 +269,32 @@ const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryA
         </button>
       </div>
 
+      <div className="ai-scanner-section">
+        <button 
+          type="button" 
+          className={`ai-scan-btn ${isScanning ? 'scanning' : ''}`}
+          onClick={() => fileRef.current?.click()}
+          disabled={isScanning}
+        >
+          {isScanning ? (
+            <><Loader size={16} className="spin" /> Reading Receipt...</>
+          ) : (
+            <><Camera size={16} /> Scan Receipt <Sparkles size={14} className="sparkle" /></>
+          )}
+        </button>
+        <input 
+          type="file" 
+          accept="image/*" 
+          capture="environment" 
+          ref={fileRef} 
+          style={{ display: 'none' }} 
+          onChange={handleSnapshotUpload} 
+        />
+        {scanError && <p className="scan-error">{scanError}</p>}
+      </div>
+
       <form onSubmit={handleSubmit} className="expense-form">
-        <div className={`amount-input-wrapper ${formData.type}`}>
+        <div className={`amount-input-wrapper ${formData.type} ${isScanning ? 'disabled' : ''}`}>
           <IndianRupee size={24} className="currency-icon" />
           <input
             type="number"

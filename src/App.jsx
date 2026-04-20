@@ -10,6 +10,7 @@ import Profile from './components/Profile/Profile';
 import StatementReview from './components/History/StatementReview';
 import Groups from './components/Groups/Groups';
 import GroupDetail from './components/Groups/GroupDetail';
+import { normalizeMerchant } from './utils/merchantUtils';
 import './index.css';
 
 // Mock data constants removed. Using Supabase for persistent storage.
@@ -169,7 +170,8 @@ function AppComponent() {
   const normalizedTransactions = useMemo(() => {
     return visibleTransactions.map(t => ({
       ...t,
-      description: merchantOverrides[t.description] || t.description
+      // Priority: User Overrides -> System Normalization -> Raw Description
+      description: normalizeMerchant(t.description, merchantOverrides)
     }));
   }, [visibleTransactions, merchantOverrides]);
 
@@ -227,14 +229,15 @@ function AppComponent() {
         {activeTab === 'review' && (
           <StatementReview
             categories={categories}
+            merchantOverrides={merchantOverrides}
             onDone={async () => { await fetchData(); setActiveTab('history'); }}
           />
         )}
 
         {activeTab === 'groups' && (!activeGroup ? (
-          <Groups user={user} onOpenGroup={setActiveGroup} />
+          <Groups user={user} onOpenGroup={setActiveGroup} accounts={accounts} />
         ) : (
-          <GroupDetail group={activeGroup} user={user} onBack={() => setActiveGroup(null)} />
+          <GroupDetail group={activeGroup} user={user} onBack={() => setActiveGroup(null)} accounts={accounts} />
         ))}
 
         {activeTab === 'profile' && (

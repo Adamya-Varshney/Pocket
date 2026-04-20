@@ -1,14 +1,23 @@
 import { useState, useRef } from 'react';
 import {
   Plus, Pause, Play, Trash2, Search, ArrowUpDown, Store,
-  Upload, FileText, CheckCircle, XCircle, AlertCircle, X, ChevronRight
+  Upload, FileText, CheckCircle, XCircle, AlertCircle, X, ChevronRight, Sparkles, Loader
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../context/AuthContext';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import * as pdfjsLib from 'pdfjs-dist';
 import Card from '../UI/Card';
 import Button from '../UI/Button';
 import AccountDetail from './AccountDetail';
 import './AccountsSection.css';
+import { generateFingerprint } from '../../utils/merchantUtils';
+
+// Configure PDF.js worker to use the bundled worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).href;
 
 const POPULAR_BANKS = [
   'HDFC Bank', 'ICICI Bank', 'State Bank of India (SBI)', 'Axis Bank', 'Kotak Mahindra Bank',
@@ -216,13 +225,135 @@ const UploadStatementModal = ({ account, user, onClose, onImported }) => {
   const [importResult, setImportResult] = useState(null);
   const [error, setError] = useState('');
   const [validation, setValidation] = useState({ errors: [], warnings: [], isValid: true });
+  // PDF / Gemini state
+  const [isPdfMode, setIsPdfMode] = useState(false);
+  const [geminiStep, setGeminiStep] = useState('idle'); // idle | rendering | analyzing | done
+  const [geminiProgress, setGeminiProgress] = useState('');
 
+  // ── Gemini Vision PDF analyzer ──────────────────────────────
+  const analyzePdfWithGemini = async (file) => {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      setError('Gemini API key not found. Add VITE_GEMINI_API_KEY to your .env file.');
+      return;
+    }
+
+    try {
+      setIsPdfMode(true);
+      setGeminiStep('rendering');
+      setGeminiProgress('Loading PDF...');
+
+      // 1. Load the PDF document using PDF.js
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const totalPages = pdf.numPages;
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+      const GEMINI_PROMPT = `You are a bank statement transaction extractor.
+Analyze this bank statement image and extract ALL transactions visible on this page.
+
+Return ONLY a valid JSON array. Each item must have exactly these fields:
+- "date": "YYYY-MM-DD" (convert any date format to ISO standard)
+- "description": "string" (merchant name or narration, cleaned up)
+- "debit_amount": number (amount going out, use 0 if not applicable)
+- "credit_amount": number (amount coming in, use 0 if not applicable)
+- "balance": number (running balance after transaction, use 0 if not shown)
+- "reference_no": "string" (UTR/Ref number if visible, empty string if absent)
+
+If no transactions are on this page (e.g. summary, header, or footer page), return [].
+Return ONLY the raw JSON array — no markdown, no code blocks, no explanation.`;
+
+      let allRows = [];
+      const seenRefs = new Set();
+
+      // 2. Process each page
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        setGeminiStep('analyzing');
+        setGeminiProgress(`Analyzing page ${pageNum} of ${totalPages} with Gemini AI...`);
+
+        // Render page to canvas
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2.0 }); // 2x scale for clarity
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        // Convert to base64 PNG
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+
+        // Send to Gemini Vision
+        let pageRows = [];
+        try {
+          const result = await model.generateContent([
+            GEMINI_PROMPT,
+            { inlineData: { data: base64, mimeType: 'image/png' } }
+          ]);
+          const text = result.response.text().trim();
+          // Strip possible markdown code fences Gemini sometimes adds
+          const clean = text.replace(/^```[a-z]*\n?/i, '').replace(/```$/i, '').trim();
+          pageRows = JSON.parse(clean);
+        } catch (parseErr) {
+          console.warn(`Page ${pageNum} parse error:`, parseErr);
+          // Non-fatal — skip this page, continue with others
+        }
+
+        // Merge into allRows, deduplicating within the PDF by reference_no
+        pageRows.forEach(row => {
+          const key = row.reference_no || `${row.date}|${row.description}|${row.debit_amount}|${row.credit_amount}`;
+          if (!seenRefs.has(key)) {
+            seenRefs.add(key);
+            allRows.push(row);
+          }
+        });
+      }
+
+      if (allRows.length === 0) {
+        setError('Gemini could not find any transactions in this PDF. Try a clearer scan or use CSV export instead.');
+        setIsPdfMode(false);
+        setGeminiStep('idle');
+        return;
+      }
+
+      // 3. Convert Gemini rows into the parsedRows shape the existing pipeline expects
+      const structuredRows = allRows.map(r => ({
+        date:         r.date || '',
+        description:  r.description || 'Unnamed',
+        debit_amount: Number(r.debit_amount) || 0,
+        credit_amount: Number(r.credit_amount) || 0,
+        balance:      Number(r.balance) || 0,
+        reference_no: r.reference_no || '',
+      }));
+
+      setGeminiStep('done');
+      setParsedRows(structuredRows);
+      setStep('preview');
+
+    } catch (err) {
+      console.error('Gemini PDF analysis failed:', err);
+      setError(`AI analysis failed: ${err.message}. Try uploading a clearer PDF or use CSV instead.`);
+      setIsPdfMode(false);
+      setGeminiStep('idle');
+    }
+  };
+
+  // ── File handler — routes CSV vs PDF ────────────────────────
   const handleFile = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setFileName(file.name);
     setError('');
+    setIsPdfMode(false);
 
+    if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
+      analyzePdfWithGemini(file);
+      return;
+    }
+
+    // Existing CSV/TXT path
     const reader = new FileReader();
     reader.onload = (ev) => {
       const { headers, rows, error: parseError } = parseCSV(ev.target.result);
@@ -246,11 +377,114 @@ const UploadStatementModal = ({ account, user, onClose, onImported }) => {
     setError('');
 
     try {
+      // Pre-build candidate rows — PDF mode uses pre-structured Gemini data,
+      // CSV mode maps through colMap as before.
+      const candidateRows = parsedRows.map(r => {
+        if (isPdfMode) {
+          // PDF rows: already structured by Gemini with clean field names
+          const txnDate = r.date || null;   // Gemini already returns ISO YYYY-MM-DD
+          const description = r.description || 'Unnamed';
+          const debit  = Number(r.debit_amount)  || 0;
+          const credit = Number(r.credit_amount) || 0;
+          return {
+            user_id:       user.id,
+            account_id:    account.id,
+            raw_date:      txnDate || '',
+            txn_date:      txnDate,
+            description,
+            debit_amount:  debit,
+            credit_amount: credit,
+            balance:       Number(r.balance) || 0,
+            reference_no:  r.reference_no || '',
+            status:        'pending',
+            _fingerprint:  generateFingerprint(user.id, txnDate, description, debit, credit),
+          };
+        }
+        // CSV rows: map through colMap
+        const debit  = parseAmount(r[colMap.debit]  || (colMap.amount && parseAmount(r[colMap.amount]) < 0 ? r[colMap.amount] : ''));
+        const credit = parseAmount(r[colMap.credit] || (colMap.amount && parseAmount(r[colMap.amount]) > 0 ? r[colMap.amount] : ''));
+        const txnDate = parseDate(r[colMap.date]);
+        const description = r[colMap.desc] || 'Unnamed';
+        return {
+          user_id:       user.id,
+          account_id:    account.id,
+          raw_date:      r[colMap.date] || '',
+          txn_date:      txnDate,
+          description,
+          debit_amount:  debit,
+          credit_amount: credit,
+          balance:       parseAmount(r[colMap.balance]),
+          reference_no:  r[colMap.ref] || '',
+          status:        'pending',
+          _fingerprint:  generateFingerprint(user.id, txnDate, description, debit, credit),
+        };
+      });
+
+      // ── Two-Tier Duplicate Detection ───────────────────────────────────────
+      // 
+      // TIER 1 (Reference Number): If the bank provided a reference/UTR number,
+      // use it as the primary key. Bank ref numbers are globally unique — two
+      // transactions can never share one, even if all other fields are identical.
+      //
+      // TIER 2 (Fingerprint vs Confirmed only): For rows without a reference
+      // number, check if the same fingerprint already exists in the *confirmed*
+      // transactions table. If so, it was already reviewed and added to the
+      // live ledger → definitive duplicate → skip.
+      //
+      // NEVER deduplicate against pending staging rows alone — that would
+      // incorrectly swallow legitimate repeat transactions (e.g. Zomato twice
+      // on the same day for the same amount).
+      //
+      const [existingRefRes, confirmedTxnRes] = await Promise.all([
+        // Tier 1: Fetch all known reference numbers for this user
+        supabase
+          .from('statement_rows')
+          .select('reference_no')
+          .eq('user_id', user.id)
+          .not('reference_no', 'is', null)
+          .neq('reference_no', ''),
+
+        // Tier 2: Fetch confirmed transactions (already in the live ledger)
+        supabase
+          .from('transactions')
+          .select('txn_date, description, amount, type')
+          .eq('user_id', user.id),
+      ]);
+
+      // Build Tier 1 lookup: set of existing reference numbers
+      const existingRefs = new Set(
+        (existingRefRes.data || []).map(r => r.reference_no)
+      );
+
+      // Build Tier 2 lookup: fingerprints of confirmed ledger rows only
+      const confirmedFingerprints = new Set(
+        (confirmedTxnRes.data || []).map(t =>
+          generateFingerprint(user.id, t.txn_date, t.description, t.amount, t.type)
+        )
+      );
+
+      let skippedCount = 0;
+      const genuinelyNewRows = candidateRows.filter(r => {
+        // Tier 1: definitive dedup by reference number
+        if (r.reference_no && existingRefs.has(r.reference_no)) {
+          skippedCount++;
+          return false;
+        }
+        // Tier 2: definitive dedup only against confirmed ledger entries
+        // (NOT against pending staging rows — repeat transactions must survive)
+        if (!r.reference_no && confirmedFingerprints.has(r._fingerprint)) {
+          skippedCount++;
+          return false;
+        }
+        return true;
+      });
+
+      // Strip internal _fingerprint field before inserting
+      const rows = genuinelyNewRows.map(({ _fingerprint, ...rest }) => rest);
+      // ──────────────────────────────────────────────────────────────────────
+
       // 1. Create a bank_statement record
-      const dates = parsedRows
-        .map(r => parseDate(r[colMap.date]))
-        .filter(Boolean)
-        .sort();
+      const dates = rows.map(r => r.txn_date).filter(Boolean).sort();
 
       const { data: stmtData, error: stmtErr } = await supabase
         .from('bank_statements')
@@ -258,7 +492,7 @@ const UploadStatementModal = ({ account, user, onClose, onImported }) => {
           user_id: user.id,
           account_id: account.id,
           filename: fileName,
-          row_count: parsedRows.length,
+          row_count: rows.length,
           status: 'processing',
           date_from: dates[0] || null,
           date_to: dates[dates.length - 1] || null,
@@ -267,34 +501,19 @@ const UploadStatementModal = ({ account, user, onClose, onImported }) => {
 
       if (stmtErr) throw new Error(`Statement record failed: ${stmtErr.message}`);
 
-      // 2. Bulk insert statement rows
-      const rows = parsedRows.map(r => {
-        const debit  = parseAmount(r[colMap.debit]  || (colMap.amount && parseAmount(r[colMap.amount]) < 0 ? r[colMap.amount] : ''));
-        const credit = parseAmount(r[colMap.credit] || (colMap.amount && parseAmount(r[colMap.amount]) > 0 ? r[colMap.amount] : ''));
-        return {
-          user_id:      user.id,
-          statement_id: stmtData.id,
-          account_id:   account.id,
-          raw_date:     r[colMap.date] || '',
-          txn_date:     parseDate(r[colMap.date]),
-          description:  r[colMap.desc] || 'Unnamed',
-          debit_amount: debit,
-          credit_amount: credit,
-          balance:      parseAmount(r[colMap.balance]),
-          reference_no: r[colMap.ref] || '',
-          status:       'pending',
-        };
-      });
-
-      const { error: rowsErr } = await supabase.from('statement_rows').insert(rows);
-      if (rowsErr) throw new Error(`Row insert failed: ${rowsErr.message}`);
+      // 2. Bulk insert only genuinely new rows (or skip if all are duplicates)
+      if (rows.length > 0) {
+        const rowsWithStmt = rows.map(r => ({ ...r, statement_id: stmtData.id }));
+        const { error: rowsErr } = await supabase.from('statement_rows').insert(rowsWithStmt);
+        if (rowsErr) throw new Error(`Row insert failed: ${rowsErr.message}`);
+      }
 
       // 3. Mark statement complete
       await supabase.from('bank_statements')
         .update({ status: 'complete' })
         .eq('id', stmtData.id);
 
-      setImportResult({ total: rows.length, statementId: stmtData.id });
+      setImportResult({ total: rows.length, skipped: skippedCount, statementId: stmtData.id });
       setStep('done');
     } catch (err) {
       setError(err.message);
@@ -314,39 +533,52 @@ const UploadStatementModal = ({ account, user, onClose, onImported }) => {
         {/* STEP 1: Upload */}
         {step === 'upload' && (
           <div className="upload-step">
-            <div className="upload-dropzone" onClick={() => fileRef.current.click()}>
-              <Upload size={40} style={{ opacity: 0.5 }} />
-              <p className="drop-title">Click to select a CSV or TXT file</p>
-              <p className="drop-hint">Auto-detects column format — no template needed</p>
-              <input ref={fileRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleFile} />
-            </div>
+            {/* Gemini analyzing overlay */}
+            {geminiStep !== 'idle' ? (
+              <div className="upload-dropzone gemini-analyzing">
+                <Loader size={40} className="spin" style={{ color: '#a855f7' }} />
+                <p className="drop-title" style={{ color: '#a855f7' }}>{geminiProgress}</p>
+                <p className="drop-hint">Gemini AI is reading your bank statement...</p>
+              </div>
+            ) : (
+              <div className="upload-dropzone" onClick={() => fileRef.current.click()}>
+                <Upload size={40} style={{ opacity: 0.5 }} />
+                <p className="drop-title">Click to select a CSV, TXT, or PDF file</p>
+                <p className="drop-hint">
+                  CSV/TXT: auto-detects columns · <span style={{ color: '#a855f7', fontWeight: 600 }}>✨ PDF: Gemini AI reads it automatically</span>
+                </p>
+                <input ref={fileRef} type="file" accept=".csv,.txt,.pdf" style={{ display: 'none' }} onChange={handleFile} />
+              </div>
+            )}
             {error && <p className="upload-error"><XCircle size={14} /> {error}</p>}
 
             {/* Bank compatibility table */}
-            <div className="format-guide">
-              <p className="format-guide-title">Supported banks & their column names:</p>
-              <div className="bank-compat-table">
-                {[
-                  { bank: 'HDFC',  date: 'Date',             desc: 'Narration',            debit: 'Debit Amount',           credit: 'Credit Amount' },
-                  { bank: 'ICICI', date: 'Transaction Date', desc: 'Transaction Remarks',  debit: 'Withdrawal Amount (INR)', credit: 'Deposit Amount (INR)' },
-                  { bank: 'SBI',   date: 'Txn Date',         desc: 'Description',          debit: 'Debit',                  credit: 'Credit' },
-                  { bank: 'Axis',  date: 'Tran Date',        desc: 'PARTICULARS',          debit: 'DR',                     credit: 'CR' },
-                  { bank: 'Kotak', date: 'Dt',               desc: 'Txn Description',      debit: 'Withdrawal Dr',          credit: 'Deposit Cr' },
-                  { bank: 'PNB',   date: 'Date',             desc: 'Particular',           debit: 'Debit',                  credit: 'Credit' },
-                ].map(r => (
-                  <div key={r.bank} className="bank-compat-row">
-                    <span className="bank-compat-name">{r.bank}</span>
-                    <span className="bank-compat-col">{r.date}</span>
-                    <span className="bank-compat-col">{r.desc}</span>
-                    <span className="bank-compat-col red">{r.debit}</span>
-                    <span className="bank-compat-col green">{r.credit}</span>
-                  </div>
-                ))}
+            {geminiStep === 'idle' && (
+              <div className="format-guide">
+                <p className="format-guide-title">Supported formats:</p>
+                <div className="bank-compat-table">
+                  {[
+                    { bank: 'HDFC',  date: 'Date',             desc: 'Narration',            debit: 'Debit Amount',           credit: 'Credit Amount' },
+                    { bank: 'ICICI', date: 'Transaction Date', desc: 'Transaction Remarks',  debit: 'Withdrawal Amount (INR)', credit: 'Deposit Amount (INR)' },
+                    { bank: 'SBI',   date: 'Txn Date',         desc: 'Description',          debit: 'Debit',                  credit: 'Credit' },
+                    { bank: 'Axis',  date: 'Tran Date',        desc: 'PARTICULARS',          debit: 'DR',                     credit: 'CR' },
+                    { bank: 'Kotak', date: 'Dt',               desc: 'Txn Description',      debit: 'Withdrawal Dr',          credit: 'Deposit Cr' },
+                    { bank: 'PNB',   date: 'Date',             desc: 'Particular',           debit: 'Debit',                  credit: 'Credit' },
+                  ].map(r => (
+                    <div key={r.bank} className="bank-compat-row">
+                      <span className="bank-compat-name">{r.bank}</span>
+                      <span className="bank-compat-col">{r.date}</span>
+                      <span className="bank-compat-col">{r.desc}</span>
+                      <span className="bank-compat-col red">{r.debit}</span>
+                      <span className="bank-compat-col green">{r.credit}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="format-guide-note">
+                  💡 PDF bank statements are parsed automatically by Gemini AI — no template needed.
+                </p>
               </div>
-              <p className="format-guide-note">
-                💡 If your bank isn't listed, the column mapping step lets you assign columns manually.
-              </p>
-            </div>
+            )}
           </div>
         )}
 
@@ -354,8 +586,10 @@ const UploadStatementModal = ({ account, user, onClose, onImported }) => {
         {step === 'preview' && (
           <div className="preview-step">
             <div className="import-summary">
-              <FileText size={16} />
-              <span><strong>{fileName}</strong> — {parsedRows.length} rows detected</span>
+              {isPdfMode
+                ? <><Sparkles size={16} style={{ color: '#a855f7' }} /><span><strong>{fileName}</strong> — <span style={{ color: '#a855f7', fontWeight: 600 }}>✨ {parsedRows.length} transactions extracted by Gemini AI</span></span></>
+                : <><FileText size={16} /><span><strong>{fileName}</strong> — {parsedRows.length} rows detected</span></>
+              }
             </div>
 
             {/* ── Validation Panel ── */}
@@ -472,7 +706,12 @@ const UploadStatementModal = ({ account, user, onClose, onImported }) => {
           <div className="done-step">
             <CheckCircle size={48} color="#00C853" />
             <h4>{importResult.total} rows imported successfully</h4>
-            <p style={{marginBottom: '20px'}}>These transactions are now in your <strong>Review Staging Area</strong>. Verified rows will appear in your live ledger.</p>
+            {importResult.skipped > 0 && (
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '8px 0 0' }}>
+                ⚡ {importResult.skipped} duplicate row{importResult.skipped !== 1 ? 's' : ''} silently skipped (already in your ledger).
+              </p>
+            )}
+            <p style={{marginBottom: '20px', marginTop: '12px'}}>These transactions are now in your <strong>Review Staging Area</strong>. Verified rows will appear in your live ledger.</p>
             <div style={{display: 'flex', gap: '12px', width: '100%'}}>
               <Button variant="secondary" fullWidth onClick={() => { onImported?.(); onClose(); }}>Close</Button>
               <Button fullWidth onClick={() => { onImported?.(); onClose(); onNavigate('review'); }}>Review Now</Button>

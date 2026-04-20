@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
-import { ArrowLeft, UserPlus, Trash2, Shield, User, PlusCircle } from 'lucide-react';
+import { ArrowLeft, UserPlus, Trash2, Shield, User, PlusCircle, Bell } from 'lucide-react';
 import Card from '../UI/Card';
 import AdvancedExpenseModal from './AdvancedExpenseModal';
+import emailjs from '@emailjs/browser';
 
-const GroupDetail = ({ group, user, onBack }) => {
+const GroupDetail = ({ group, user, onBack, accounts }) => {
   const [members, setMembers] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +16,7 @@ const GroupDetail = ({ group, user, onBack }) => {
   const [filterMemberId, setFilterMemberId] = useState('all');
   const [settleModal, setSettleModal] = useState(null);
   const [inviteModalText, setInviteModalText] = useState('');
+  const [sendingReminderTo, setSendingReminderTo] = useState(null);
 
   const isOwner = group.myRole === 'owner';
 
@@ -116,6 +118,7 @@ const GroupDetail = ({ group, user, onBack }) => {
       key: key,
       user_id: m.user_id,
       name: m.member_name || m.member_email?.split('@')[0] || 'Unknown',
+      email: m.member_email,
       paid: 0,
       balance: 0
     };
@@ -187,6 +190,7 @@ const GroupDetail = ({ group, user, onBack }) => {
     suggestedSettlements.push({
       from: debtor.key,
       fromName: debtor.name,
+      fromEmail: debtor.email,
       to: creditor.key,
       toName: creditor.name,
       amount: amount
@@ -214,6 +218,43 @@ const GroupDetail = ({ group, user, onBack }) => {
       fetchData();
     } catch (error) {
       alert('Failed to record settlement');
+    }
+  };
+
+  const handleSendReminder = async (settlement) => {
+    // Check if configuration exists
+    const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+    const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+    const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+    if (!serviceId || !templateId || !publicKey) {
+      alert("Missing EmailJS Configuration! Please configure your keys in the .env file.");
+      return;
+    }
+
+    if (!settlement.fromEmail) {
+      alert("This user does not have an email address tied to their profile.");
+      return;
+    }
+
+    setSendingReminderTo(settlement.from);
+    try {
+      const templateParams = {
+        to_email: settlement.fromEmail,
+        to_name: settlement.fromName,
+        from_name: settlement.toName === 'You' ? user.user_metadata?.display_name || 'A group member' : settlement.toName,
+        group_name: group.name,
+        amount: settlement.amount.toFixed(2),
+        app_url: window.location.origin
+      };
+
+      await emailjs.send(serviceId, templateId, templateParams, publicKey);
+      alert(`Reminder successfully sent to ${settlement.fromName}!`);
+    } catch (error) {
+      console.error('Email sending failed:', error);
+      alert('Failed to send the email reminder. Check your EmailJS configuration.');
+    } finally {
+      setSendingReminderTo(null);
     }
   };
 
@@ -351,14 +392,28 @@ const GroupDetail = ({ group, user, onBack }) => {
                       <strong>{s.from === user.id ? 'You' : s.fromName}</strong> owes <strong>{s.to === user.id ? 'You' : s.toName}</strong> 
                       <div style={{ color: '#f44336', fontWeight: 'bold' }}>₹{s.amount.toFixed(2)}</div>
                     </div>
-                    {/* Allow either party to settle it for convenience */}
-                    <button 
-                      className="btn-primary" 
-                      style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--primary)' }}
-                      onClick={() => setSettleModal(s)}
-                    >
-                      Settle Up
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {/* Only allow reminding if the debtor isn't the logged-in user! */}
+                      {s.from !== user.id && (
+                        <button 
+                          className="btn-secondary" 
+                          style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => handleSendReminder(s)}
+                          disabled={sendingReminderTo === s.from}
+                        >
+                          <Bell size={12} />
+                          {sendingReminderTo === s.from ? 'Sending...' : 'Remind'}
+                        </button>
+                      )}
+                      
+                      <button 
+                        className="btn-primary" 
+                        style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--primary)' }}
+                        onClick={() => setSettleModal(s)}
+                      >
+                        Settle Up
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -434,6 +489,7 @@ const GroupDetail = ({ group, user, onBack }) => {
         members={members}
         user={user}
         onExpenseAdded={fetchData}
+        accounts={accounts}
       />
     </div>
   );

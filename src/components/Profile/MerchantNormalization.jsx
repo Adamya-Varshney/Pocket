@@ -11,6 +11,7 @@ import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import Card from '../UI/Card';
 import './MerchantNormalization.css';
+import { normalizeMerchant } from '../../utils/merchantUtils';
 
 const MerchantNormalization = ({ transactions, merchantOverrides, setMerchantOverrides }) => {
   const { user } = useAuth();
@@ -80,6 +81,13 @@ const MerchantNormalization = ({ transactions, merchantOverrides, setMerchantOve
               <div className="merchant-name-stack">
                 <span className="original-label">Original Statement Name</span>
                 <span className="original-val">{merchant}</span>
+                {(() => {
+                  const systemMatch = normalizeMerchant(merchant, {}); // check without user overrides
+                  if (systemMatch !== merchant) {
+                    return <span className="system-match-badge">System Match: {systemMatch}</span>;
+                  }
+                  return null;
+                })()}
               </div>
             </div>
             

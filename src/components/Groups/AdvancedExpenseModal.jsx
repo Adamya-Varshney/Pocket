@@ -18,6 +18,16 @@ const AdvancedExpenseModal = ({ show, onClose, group, members, user, onExpenseAd
   const [splitSelected, setSplitSelected] = useState([]);
   const [splitExact, setSplitExact] = useState({});
   const [fullAmountTarget, setFullAmountTarget] = useState('');
+  
+  // Sync Status
+  const [syncToPersonal, setSyncToPersonal] = useState(true);
+  const [selectedAccountId, setSelectedAccountId] = useState(accounts?.[0]?.id || '');
+
+  useEffect(() => {
+    if (show && accounts?.length > 0 && !selectedAccountId) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [show, accounts, selectedAccountId]);
 
   useEffect(() => {
     if (show) {
@@ -116,8 +126,42 @@ const AdvancedExpenseModal = ({ show, onClose, group, members, user, onExpenseAd
         advanced_split: advanced_split
       };
 
-      const { error } = await supabase.from('expense_group_transactions').insert(insertData);
-      if (error) throw error;
+      const { data: groupTxn, error: groupErr } = await supabase
+        .from('expense_group_transactions')
+        .insert(insertData)
+        .select()
+        .single();
+        
+      if (groupErr) throw groupErr;
+
+      // ──────────────────────────────────────────────────────────────────────
+      // ── Personal Ledger Sync: Resolving Dashboard Isolation ───────────────
+      // ──────────────────────────────────────────────────────────────────────
+      const userPaidEntry = paidArr.find(p => p.key === user.id);
+      if (syncToPersonal && userPaidEntry && userPaidEntry.amount > 0) {
+        // Find a matching personal category based on the group category name
+        // (Uses the same fuzzy logic from merchantUtils)
+        const { data: personalCats } = await supabase.from('categories').select('*');
+        const personalCat = personalCats?.find(c => 
+          c.name.toLowerCase().includes(insertData.category.toLowerCase()) ||
+          insertData.category.toLowerCase().includes(c.name.toLowerCase())
+        );
+
+        await supabase.from('transactions').insert({
+          user_id:      user.id,
+          account_id:   selectedAccountId,
+          type:         'expense',
+          amount:       userPaidEntry.amount,
+          description:  `[Group: ${group.name}] ${description}`,
+          txn_date:     date,
+          category_id:  personalCat?.id || null,
+          payment_mode: 'UPI', // Default for groups usually
+          status:       'settled',
+          source:       'group_expense',
+          reference_no: `grp_${groupTxn.id}` // Link back to group transaction
+        });
+      }
+      // ──────────────────────────────────────────────────────────────────────
       
       // Reset Modal
       setDescription('');
@@ -155,6 +199,35 @@ const AdvancedExpenseModal = ({ show, onClose, group, members, user, onExpenseAd
             <label style={{ fontSize:'12px', color:'var(--text-muted)' }}>Date</label>
             <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:'100%', padding:'10px', marginTop:'4px'}}/>
           </div>
+        </div>
+
+        {/* --- PERSONAL SYNC --- */}
+        <div style={{ marginTop: '20px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h4 style={{ margin: 0, fontSize: '14px' }}>Personal Ledger Sync</h4>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+               <input type="checkbox" checked={syncToPersonal} onChange={e => setSyncToPersonal(e.target.checked)} />
+               <span style={{ fontSize: '12px' }}>Add to Dashboard</span>
+            </label>
+          </div>
+          
+          {syncToPersonal && (
+            <div className="animate-fade-in">
+              <label style={{ fontSize:'11px', color:'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Which account did you pay from?</label>
+              <select 
+                value={selectedAccountId} 
+                onChange={e => setSelectedAccountId(e.target.value)}
+                style={{ width: '100%', padding: '10px', fontSize: '13px' }}
+              >
+                {accounts?.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.bank_name || 'Bank'} - {acc.name}</option>
+                ))}
+              </select>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                Only the portion you paid (₹{(paidArr.find(p => p.key === user.id)?.amount || 0).toFixed(2)}) will be recorded.
+              </p>
+            </div>
+          )}
         </div>
 
         <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '24px 0' }}/>
