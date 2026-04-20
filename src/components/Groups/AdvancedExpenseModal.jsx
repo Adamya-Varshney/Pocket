@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { X, Check } from 'lucide-react';
 
-const AdvancedExpenseModal = ({ show, onClose, group, members, user, onExpenseAdded }) => {
+const AdvancedExpenseModal = ({ show, onClose, group, members, user, onExpenseAdded, accounts }) => {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
