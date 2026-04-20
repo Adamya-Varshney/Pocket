@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   IndianRupee, Calendar, Tag, CreditCard, UserPlus, Clock,
   ArrowDownCircle, ArrowUpCircle, HandCoins,
