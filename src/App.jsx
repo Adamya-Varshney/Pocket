@@ -19,6 +19,7 @@ function AppComponent() {
   const { session, user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeGroup, setActiveGroup] = useState(null);
+  const [profileSegment, setProfileSegment] = useState(null);
   const [dashboardFilter, setDashboardFilter] = useState('current');
   const [dashboardCustomMonth, setDashboardCustomMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [historyFilter, setHistoryFilter] = useState('all');
@@ -114,6 +115,16 @@ function AppComponent() {
     };
   }, [user?.id, session?.user?.id]);
 
+  // Deep Linking Handler (from notifications)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetTab = params.get('tab');
+    const targetSegment = params.get('segment');
+    
+    if (targetTab) setActiveTab(targetTab);
+    if (targetSegment) setProfileSegment(targetSegment);
+  }, []);
+
   // Apply theme & density from user preferences to the entire document
   useEffect(() => {
     const prefs = user?.preferences || {};
@@ -129,8 +140,9 @@ function AppComponent() {
     document.documentElement.setAttribute('data-density', density);
   }, [user?.preferences]);
 
-  const handleTabChange = (tab, filter = 'all') => {
+  const handleTabChange = (tab, filter = 'all', segmentId = null) => {
     setActiveTab(tab);
+    setProfileSegment(segmentId);
     if(tab !== 'groups') setActiveGroup(null);
     if (tab === 'history') {
       setHistoryFilter(filter);
@@ -194,6 +206,7 @@ function AppComponent() {
       <div className="app-content container">
         {activeTab === 'dashboard' && (
           <Dashboard 
+            user={user}
             transactions={normalizedTransactions} 
             onNavigate={handleTabChange}
             monthRange={financialMonthRange}
@@ -202,6 +215,7 @@ function AppComponent() {
             setFilterState={setDashboardFilter}
             customMonthState={dashboardCustomMonth}
             setCustomMonthState={setDashboardCustomMonth}
+            onViewInsights={() => handleTabChange('profile', 'all', 'insights')}
           />
         )}
         
@@ -251,6 +265,8 @@ function AppComponent() {
             categories={categories}
             onRefreshCategories={fetchData}
             onNavigate={handleTabChange}
+            initialSegment={profileSegment}
+            onSegmentChange={setProfileSegment}
           />
         )}
       </div>

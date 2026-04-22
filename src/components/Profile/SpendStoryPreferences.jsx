@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Sparkles, History, Filter, ThumbsUp, ThumbsDown, BrainCircuit, ShieldAlert, EyeOff, X, MessageSquare
 } from 'lucide-react';
@@ -6,17 +6,10 @@ import Card from '../UI/Card';
 import Button from '../UI/Button';
 import './SpendStoryPreferences.css';
 
-const MOCK_INSIGHTS = [
-  { id: 'i1', type: 'Category Spike', text: 'You spent ₹4,500 more on Food & Dining this week compared to your 6-week average.', date: 'Today', feedback: null },
-  { id: 'i2', type: 'Weekday Clustering', text: '70% of your discretionary spending happens on Fridays.', date: '3 days ago', feedback: 'useful' },
-  { id: 'i3', type: 'New Merchant', text: 'You have a new recurring charge from "AWS Services".', date: '1 week ago', feedback: 'not-useful' },
-  { id: 'i4', type: 'Category Spike', text: 'Utility bills are 15% higher this month.', date: '2 weeks ago', feedback: 'useful' }
-];
+import { supabase } from '../../supabaseClient';
+import { useAuth } from '../../context/AuthContext';
 
-const SYSTEM_CATEGORIES = [
-  'Food & Dining', 'Transport', 'Bills & Utilities', 'Shopping', 'Entertainment', 'Groceries', 
-  'Healthcare', 'Housing', 'Travel', 'Education', 'Investments', 'Savings', 'Other'
-];
+
 
 const ToggleSwitch = ({ checked, onChange }) => (
   <button
@@ -29,11 +22,35 @@ const ToggleSwitch = ({ checked, onChange }) => (
   </button>
 );
 
-const SpendStoryPreferences = () => {
+const SpendStoryPreferences = ({ categories = [] }) => {
+  const { user } = useAuth();
   // 1. History
-  const [insights, setInsights] = useState(MOCK_INSIGHTS);
-  const [historyFilter, setHistoryFilter] = useState('all'); // all, useful, not-useful, no-feedback
+  const [insights, setInsights] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [historyFilter, setHistoryFilter] = useState('all'); // all, up, down, no-feedback
   const [selectedInsight, setSelectedInsight] = useState(null);
+
+  useEffect(() => {
+    if (user?.id) fetchInsights();
+  }, [user?.id]);
+
+  const fetchInsights = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('insights')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('week_start', { ascending: false });
+
+      if (data) setInsights(data);
+    } catch (err) {
+      console.error('Failed to fetch insights:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 2. Pattern Preferences
   const [patterns, setPatterns] = useState({
@@ -67,18 +84,29 @@ const SpendStoryPreferences = () => {
     }
   };
 
-  const handleFeedback = (id, feedbackVal) => {
-    setInsights(insights.map(ins => ins.id === id ? { ...ins, feedback: feedbackVal } : ins));
-    if (selectedInsight) {
-      setSelectedInsight({ ...selectedInsight, feedback: feedbackVal });
+  const handleFeedback = async (id, feedbackVal) => {
+    try {
+      const { error } = await supabase
+        .from('insights')
+        .update({ feedback: feedbackVal })
+        .eq('id', id);
+
+      if (!error) {
+        setInsights(insights.map(ins => ins.id === id ? { ...ins, feedback: feedbackVal } : ins));
+        if (selectedInsight) {
+          setSelectedInsight({ ...selectedInsight, feedback: feedbackVal });
+        }
+      }
+    } catch (err) {
+      console.error('Feedback failed:', err);
     }
   };
 
   const getFilteredInsights = () => {
     switch (historyFilter) {
-      case 'useful': return insights.filter(i => i.feedback === 'useful');
-      case 'not-useful': return insights.filter(i => i.feedback === 'not-useful');
-      case 'no-feedback': return insights.filter(i => i.feedback === null);
+      case 'up': return insights.filter(i => i.feedback === 'up');
+      case 'down': return insights.filter(i => i.feedback === 'down');
+      case 'no-feedback': return insights.filter(i => !i.feedback);
       default: return insights;
     }
   };
@@ -102,14 +130,14 @@ const SpendStoryPreferences = () => {
              <p className="feedback-label">Was this helpful?</p>
              <div className="feedback-actions">
                 <button 
-                  className={`feedback-btn thumbs-up ${selectedInsight.feedback === 'useful' ? 'active' : ''}`}
-                  onClick={() => handleFeedback(selectedInsight.id, 'useful')}
+                  className={`feedback-btn thumbs-up ${selectedInsight.feedback === 'up' ? 'active' : ''}`}
+                  onClick={() => handleFeedback(selectedInsight.id, 'up')}
                 >
                   <ThumbsUp size={16}/> Yes
                 </button>
                 <button 
-                  className={`feedback-btn thumbs-down ${selectedInsight.feedback === 'not-useful' ? 'active' : ''}`}
-                  onClick={() => handleFeedback(selectedInsight.id, 'not-useful')}
+                  className={`feedback-btn thumbs-down ${selectedInsight.feedback === 'down' ? 'active' : ''}`}
+                  onClick={() => handleFeedback(selectedInsight.id, 'down')}
                 >
                   <ThumbsDown size={16}/> No
                 </button>
@@ -139,38 +167,42 @@ const SpendStoryPreferences = () => {
         <div className="story-card-body">
            <div className="filter-scroll-wrapper">
              <Filter size={14} className="filter-icon" />
-             <div className="filter-pills">
-               {['all', 'useful', 'not-useful', 'no-feedback'].map(f => (
-                 <button 
-                   key={f}
-                   className={`filter-pill ${historyFilter === f ? 'active' : ''}`}
-                   onClick={() => setHistoryFilter(f)}
-                 >
-                   {f.replace('-', ' ')}
-                 </button>
-               ))}
-             </div>
+              <div className="filter-pills">
+                {['all', 'up', 'down', 'no-feedback'].map(f => (
+                  <button 
+                    key={f}
+                    className={`filter-pill ${historyFilter === f ? 'active' : ''}`}
+                    onClick={() => setHistoryFilter(f)}
+                  >
+                    {f === 'up' ? 'Liked' : f === 'down' ? 'Disliked' : f.replace('-', ' ')}
+                  </button>
+                ))}
+              </div>
            </div>
 
            <div className="insights-list">
-              {filteredInsights.length === 0 ? (
-                <div className="empty-state">No insights match this filter.</div>
-              ) : (
-                filteredInsights.map(ins => (
-                  <div key={ins.id} className="insight-row" onClick={() => setSelectedInsight(ins)}>
-                    <div className="insight-content">
-                       <span className="insight-type">{ins.type}</span>
-                       <p className="insight-snippet">{ins.text}</p>
-                       <span className="insight-date">{ins.date}</span>
-                    </div>
-                    <div className="insight-feedback-badge">
-                       {ins.feedback === 'useful' && <ThumbsUp size={14} className="badge-up"/>}
-                       {ins.feedback === 'not-useful' && <ThumbsDown size={14} className="badge-down"/>}
-                       {ins.feedback === null && <MessageSquare size={14} className="badge-none"/>}
-                    </div>
-                  </div>
-                ))
-              )}
+               {loading ? (
+                  <div className="empty-state">Analyzing insights...</div>
+               ) : filteredInsights.length === 0 ? (
+                 <div className="empty-state">No insights match this filter.</div>
+               ) : (
+                 filteredInsights.map(ins => (
+                   <div key={ins.id} className="insight-row animate-fade-in" onClick={() => setSelectedInsight(ins)}>
+                     <div className="insight-content">
+                        <span className="insight-type">{ins.pattern_module.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        <p className="insight-snippet">{ins.rendered_text}</p>
+                        <span className="insight-date">
+                          {new Date(ins.week_start).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                        </span>
+                     </div>
+                     <div className="insight-feedback-badge">
+                        {ins.feedback === 'up' && <ThumbsUp size={14} className="badge-up"/>}
+                        {ins.feedback === 'down' && <ThumbsDown size={14} className="badge-down"/>}
+                        {!ins.feedback && <MessageSquare size={14} className="badge-none"/>}
+                     </div>
+                   </div>
+                 ))
+               )}
            </div>
         </div>
       </Card>
@@ -241,20 +273,20 @@ const SpendStoryPreferences = () => {
            </p>
 
            <div className="exclusion-grid">
-              {SYSTEM_CATEGORIES.map(cat => {
-                const isExcluded = excludedCategories.includes(cat);
-                return (
-                  <button 
-                    key={cat}
-                    className={`exclusion-chip ${isExcluded ? 'excluded' : ''}`}
-                    onClick={() => toggleExclusion(cat)}
-                  >
-                    {cat}
-                    {isExcluded && <EyeOff size={12}/>}
-                  </button>
-                )
-              })}
-           </div>
+               {(categories.length > 0 ? categories.map(c => c.name) : ['Other']).map(cat => {
+                 const isExcluded = excludedCategories.includes(cat);
+                 return (
+                   <button 
+                     key={cat}
+                     className={`exclusion-chip ${isExcluded ? 'excluded' : ''}`}
+                     onClick={() => toggleExclusion(cat)}
+                   >
+                     {cat}
+                     {isExcluded && <EyeOff size={12}/>}
+                   </button>
+                 )
+               })}
+            </div>
         </div>
       </Card>
 

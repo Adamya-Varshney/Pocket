@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   User, 
   ChevronRight, 
@@ -33,7 +33,7 @@ const PROFILE_SEGMENTS = [
   { id: 'notifications', title: 'Notifications', icon: Bell, color: '#8B5CF6', subtitle: 'Alerts & Reminders' },
   { id: 'privacy', title: 'Privacy & security', icon: ShieldCheck, color: '#EF4444', subtitle: 'Data & Access control' },
   { id: 'personalization', title: 'Personalization', icon: Palette, color: '#B45309', subtitle: 'Theme & Appearance' },
-  { id: 'insights', title: 'Spend Story preferences', icon: History, color: '#2DD4BF', subtitle: 'AI Insight settings' },
+  { id: 'insights', title: 'Spend Story', icon: History, color: '#2DD4BF', subtitle: 'View history & AI insights' },
   { id: 'sub-radar', title: 'Subscription Radar', icon: Radar, color: '#6366F1', subtitle: 'Detect recurring payments' },
   { id: 'appinfo', title: 'App info', icon: Info, color: '#71717A', subtitle: 'Version & Legal' },
 ];
@@ -47,13 +47,25 @@ const Profile = ({
   setTransactions,
   categories,
   onRefreshCategories,
-  onNavigate
+  onNavigate,
+  initialSegment = null,
+  onSegmentChange
 }) => {
-  const [activeSegment, setActiveSegment] = useState(null);
+  const [activeSegment, setActiveSegment] = useState(initialSegment);
+
+  useEffect(() => {
+    if (initialSegment) setActiveSegment(initialSegment);
+  }, [initialSegment]);
+
+  const handleBack = () => {
+    setActiveSegment(null);
+    if (onSegmentChange) onSegmentChange(null);
+  };
 
   const handleSegmentClick = (id) => {
     if (['identity', 'financial', 'accounts', 'spendstory', 'notifications', 'privacy', 'personalization', 'insights', 'sub-radar', 'appinfo'].includes(id)) {
       setActiveSegment(id);
+      if (onSegmentChange) onSegmentChange(id);
     } else {
       alert(`${id} segment placeholder`);
     }
@@ -63,7 +75,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Identity</h1>
@@ -77,7 +89,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Financial profile</h1>
@@ -91,7 +103,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Accounts & data sources</h1>
@@ -112,7 +124,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Merchant overrides</h1>
@@ -130,7 +142,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Notifications</h1>
@@ -144,7 +156,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Privacy & security</h1>
@@ -158,7 +170,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Personalization</h1>
@@ -176,12 +188,12 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Spend Story Preferences</h1>
         </header>
-        <SpendStoryPreferences />
+        <SpendStoryPreferences categories={categories} />
       </div>
     );
   }
@@ -190,7 +202,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>Subscription Radar</h1>
@@ -204,7 +216,7 @@ const Profile = ({
     return (
       <div className="profile-subpage animate-fade-in">
         <header className="profile-subpage-header">
-          <button className="back-btn" onClick={() => setActiveSegment(null)}>
+          <button className="back-btn" onClick={handleBack}>
             <ArrowLeft size={24} />
           </button>
           <h1>App Info</h1>

@@ -219,7 +219,7 @@ Return ONLY JSON.`;
           : (formData.hasPayback
               ? parseFloat(finalPaybackAmount)
               : (formData.isDebt ? parseFloat(formData.amount) : 0)),
-        status: (isLent || formData.hasPayback || formData.isDebt) ? 'pending' : 'settled'
+        status: (isLent || formData.hasPayback || formData.isDebt || (actualType === 'income' && formData.income_type === 'Credit')) ? 'pending' : 'settled'
       });
 
       if (!error) {

@@ -10,9 +10,11 @@ import {
   Wallet
 } from 'lucide-react';
 import Card from '../UI/Card';
+import SpendStory from './SpendStory';
 import './Dashboard.css';
 
 const Dashboard = ({ 
+  user,
   transactions, 
   onNavigate, 
   monthRange, 
@@ -20,7 +22,8 @@ const Dashboard = ({
   filterState = 'current',
   setFilterState,
   customMonthState,
-  setCustomMonthState
+  setCustomMonthState,
+  onViewInsights
 }) => {
   const currentCustomYear = (customMonthState || new Date().toISOString().slice(0, 7)).split('-')[0];
   const currentCustomMonth = (customMonthState || new Date().toISOString().slice(0, 7)).split('-')[1];
@@ -67,7 +70,7 @@ const Dashboard = ({
       
     // Capture income explicitly marked as 'Credit' (liability)
     const creditIncome = filtered
-      .filter(t => t.type === 'income' && t.income_type === 'Credit')
+      .filter(t => t.type === 'income' && t.income_type === 'Credit' && t.status === 'pending')
       .reduce((acc, curr) => acc + curr.amount, 0);
  
     // Calculate original 'Owed by You' from expenses
@@ -148,6 +151,12 @@ const Dashboard = ({
           )}
         </div>
       </header>
+      
+      <SpendStory 
+        user={user} 
+        transactionsCount={stats.filteredTransactions.length} 
+        onViewAll={onViewInsights}
+      />
 
       <div className="stats-grid">
         <Card className="stat-card balance-gradient">

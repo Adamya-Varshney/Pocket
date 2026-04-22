@@ -102,7 +102,10 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
       if (activeType === 'expense' && txn.type !== 'expense') return false;
       if (activeType === 'income' && txn.type !== 'income') return false;
       if (activeType === 'owed_to_me' && (!txn.hasPayback || txn.type !== 'expense' || txn.status !== 'pending')) return false;
-      if (activeType === 'owed_by_me' && (!txn.isDebt || txn.type !== 'expense' || txn.status !== 'pending')) return false;
+      if (activeType === 'owed_by_me' && !(
+        (txn.isDebt && txn.type === 'expense' && txn.status === 'pending') || 
+        (txn.income_type === 'Credit' && txn.type === 'income' && txn.status === 'pending')
+      )) return false;
       if (activeType === 'settled' && txn.status !== 'settled') return false;
       if (activeCategory !== 'all' && txn.category !== activeCategory) return false;
       if (searchQuery && !txn.description?.toLowerCase().includes(searchQuery.toLowerCase()) &&
