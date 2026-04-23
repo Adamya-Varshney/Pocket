@@ -23,7 +23,9 @@ const ToggleSwitch = ({ checked, onChange }) => (
 );
 
 const SpendStoryPreferences = ({ categories = [] }) => {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   // 1. History
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,16 +54,19 @@ const SpendStoryPreferences = ({ categories = [] }) => {
     }
   };
 
-  // 2. Pattern Preferences
+  // 2. Pattern Preferences (loaded from DB)
+  const savedPrefs = user?.preferences?.spendStory || {};
   const [patterns, setPatterns] = useState({
-    spike: true,
-    cluster: true,
-    merchant: true
+    spike: savedPrefs.patterns?.spike ?? true,
+    cluster: savedPrefs.patterns?.cluster ?? true,
+    merchant: savedPrefs.patterns?.merchant ?? true
   });
   const [patternWarning, setPatternWarning] = useState(false);
 
-  // 3. Category Exclusions
-  const [excludedCategories, setExcludedCategories] = useState(['Housing', 'Investments']); // mock fixed expenses
+  // 3. Category Exclusions (loaded from DB)
+  const [excludedCategories, setExcludedCategories] = useState(
+    savedPrefs.excludedCategories || []
+  );
 
   const handlePatternToggle = (key) => {
     const activeCount = Object.values(patterns).filter(Boolean).length;
@@ -291,7 +296,29 @@ const SpendStoryPreferences = ({ categories = [] }) => {
       </Card>
 
       <div className="save-actions">
-         <Button fullWidth onClick={() => alert("Spend Story preferences saved!")}>Save Preferences</Button>
+         <Button 
+           fullWidth 
+           onClick={async () => {
+             setSavingPrefs(true);
+             setSaveSuccess(false);
+             const currentPrefs = user?.preferences || {};
+             await updateProfile({
+               preferences: {
+                 ...currentPrefs,
+                 spendStory: {
+                   patterns,
+                   excludedCategories,
+                 }
+               }
+             });
+             setSavingPrefs(false);
+             setSaveSuccess(true);
+             setTimeout(() => setSaveSuccess(false), 3000);
+           }}
+           disabled={savingPrefs}
+         >
+           {savingPrefs ? 'Saving...' : saveSuccess ? '✓ Preferences Saved' : 'Save Preferences'}
+         </Button>
       </div>
 
       {renderInsightModal()}

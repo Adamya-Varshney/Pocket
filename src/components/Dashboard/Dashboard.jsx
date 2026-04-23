@@ -88,6 +88,12 @@ const Dashboard = ({
         return acc;
       }, {});
  
+    const today = new Date();
+    const lastSunday = new Date(today);
+    lastSunday.setDate(today.getDate() - today.getDay());
+    const weekStartStr = lastSunday.toISOString().split('T')[0];
+    const weeklyTransactionsCount = transactions.filter(t => t.date >= weekStartStr).length;
+
     return { 
       totalExpenses, 
       totalIncome, 
@@ -97,7 +103,8 @@ const Dashboard = ({
       totalDebt, 
       categoryTotals, 
       balance: totalIncome - totalExpenses,
-      filteredTransactions: filtered 
+      filteredTransactions: filtered,
+      weeklyTransactionsCount
     };
   }, [transactions, filterState, monthRange, customMonthState, userPreferences?.month_start_date]);
 
@@ -154,7 +161,7 @@ const Dashboard = ({
       
       <SpendStory 
         user={user} 
-        transactionsCount={stats.filteredTransactions.length} 
+        transactions={transactions}
         onViewAll={onViewInsights}
       />
 

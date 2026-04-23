@@ -245,3 +245,54 @@
   color: var(--text-muted);
 }
 
+/* ─── TIER BREAKDOWN BAR ─── */
+.tier-bar-container {
+  margin-bottom: 20px;
+}
+
+.tier-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 100px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  gap: 2px;
+}
+
+.tier-segment {
+  height: 100%;
+  border-radius: 100px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 4px;
+}
+
+.tier-segment.necessary { background: #10B981; }
+.tier-segment.discretionary { background: #F59E0B; }
+.tier-segment.contingent { background: #EF4444; }
+
+.tier-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.tier-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.tier-label .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.necessary { background: #10B981; }
+.dot.discretionary { background: #F59E0B; }
+.dot.contingent { background: #EF4444; }

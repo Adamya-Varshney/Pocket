@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { detectCategorySpike, detectWeekdayClustering, detectNewMerchant } from "./patternDetection.ts";
+import { detectDeepInsights } from "./patternDetection.ts";
 import { renderTemplate } from "./templates.ts";
 import { sendPushNotification } from "./oneSignal.ts";
 
@@ -32,35 +32,30 @@ serve(async (req) => {
     for (const user of users) {
       const userId = user.id;
 
-      // 2. Fetch last 5 weeks of transactions
-      const fiveWeeksAgo = new Date(today);
-      fiveWeeksAgo.setDate(today.getDate() - 35);
+      // 2. Fetch last 6 months (180 days) of transactions
+      const sixMonthsAgo = new Date(today);
+      sixMonthsAgo.setDate(today.getDate() - 180);
       
       const { data: txns, error: txnErr } = await supabase
         .from('transactions')
         .select('*, categories(name)')
         .eq('user_id', userId)
-        .gte('txn_date', fiveWeeksAgo.toISOString().split('T')[0])
+        .gte('txn_date', sixMonthsAgo.toISOString().split('T')[0])
         .lte('txn_date', today.toISOString().split('T')[0]);
 
       if (txnErr) continue;
 
-      // Split current week (7 days) and historical (4 weeks prior)
-      const sevenDaysAgo = new Date(today);
-      sevenDaysAgo.setDate(today.getDate() - 7);
-      
-      const currentWeek = txns.filter(t => t.txn_date >= sevenDaysAgo.toISOString().split('T')[0]);
-      const history = txns.filter(t => t.txn_date < sevenDaysAgo.toISOString().split('T')[0]);
+      // Split current week (Since Sunday) and historical (prior weeks)
+      const currentWeek = txns.filter(t => t.txn_date >= weekStart);
+      const history = txns.filter(t => t.txn_date < weekStart);
 
       if (currentWeek.length < 10) {
         console.log(`User ${userId} has insufficient data (${currentWeek.length} txns)`);
         continue;
       }
 
-      // 3. Run detection modules
-      let win = detectCategorySpike(currentWeek, history) || 
-                detectWeekdayClustering(txns) || 
-                detectNewMerchant(currentWeek, history);
+      // 3. Run Deep Auditor (Statistical Multi-Temporal Detection)
+      let win = detectDeepInsights(currentWeek, history);
 
       if (!win) {
         // Fallback: Lower spike threshold
