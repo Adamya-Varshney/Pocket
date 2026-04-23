@@ -224,7 +224,7 @@ const AdvancedExpenseModal = ({ show, onClose, group, members, user, onExpenseAd
                 ))}
               </select>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                Only the portion you paid (₹{(paidArr.find(p => p.key === user.id)?.amount || 0).toFixed(2)}) will be recorded.
+                Only the portion you paid (₹{(payerMode === 'SINGLE' ? (singlePayerId === user.id ? parsedAmount : 0) : (parseFloat(multiPayers[user.id]) || 0)).toFixed(2)}) will be recorded.
               </p>
             </div>
           )}
