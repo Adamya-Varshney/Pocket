@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { Sparkles, ThumbsUp, ThumbsDown, ChevronRight, TrendingUp, Shield, ShoppingBag } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { analyzeSpendStory } from '../../utils/spendStoryEngine';
 import './SpendStory.css';
 
@@ -111,12 +112,6 @@ const SpendStory = ({ user, transactions = [], onViewAll }) => {
 
   // No analysis possible (insufficient data)
   if (!analysis || !analysis.primary) {
-    const weeklyCount = transactions.filter(t => {
-      const lastSunday = new Date();
-      lastSunday.setDate(lastSunday.getDate() - lastSunday.getDay());
-      return t.date >= lastSunday.toISOString().split('T')[0];
-    }).length;
-
     return (
       <div 
         className="spend-story-nudge animate-fade-in" 
@@ -166,26 +161,48 @@ const SpendStory = ({ user, transactions = [], onViewAll }) => {
           <p className="story-text">{insight.text}</p>
         </div>
 
-        {/* Tier Breakdown Bar */}
+        {/* Tier Breakdown Donut Chart */}
         {analysis.tierBreakdown && (
-          <div className="tier-bar-container">
-            <div className="tier-bar">
-              {(() => {
-                const total = analysis.tierBreakdown.necessary + analysis.tierBreakdown.discretionary + analysis.tierBreakdown.contingent;
-                if (total === 0) return null;
-                return (
-                  <>
-                    <div className="tier-segment necessary" style={{ width: `${(analysis.tierBreakdown.necessary / total) * 100}%` }} title={`Necessary: ₹${Math.round(analysis.tierBreakdown.necessary).toLocaleString('en-IN')}`} />
-                    <div className="tier-segment discretionary" style={{ width: `${(analysis.tierBreakdown.discretionary / total) * 100}%` }} title={`Discretionary: ₹${Math.round(analysis.tierBreakdown.discretionary).toLocaleString('en-IN')}`} />
-                    <div className="tier-segment contingent" style={{ width: `${(analysis.tierBreakdown.contingent / total) * 100}%` }} title={`Contingent: ₹${Math.round(analysis.tierBreakdown.contingent).toLocaleString('en-IN')}`} />
-                  </>
-                );
-              })()}
-            </div>
-            <div className="tier-legend">
-              <span className="tier-label"><span className="dot necessary" /> Necessary</span>
-              <span className="tier-label"><span className="dot discretionary" /> Discretionary</span>
-              <span className="tier-label"><span className="dot contingent" /> Contingent</span>
+          <div className="tier-donut-container" style={{ width: '100%', height: '220px', marginTop: '16px', display: 'flex', flexDirection: 'column' }}>
+            {(() => {
+              const { necessary, discretionary, contingent } = analysis.tierBreakdown;
+              const data = [
+                { name: 'Necessary', value: necessary, color: '#3b82f6' },      // blue-500
+                { name: 'Discretionary', value: discretionary, color: '#f59e0b' }, // amber-500
+                { name: 'Contingent', value: contingent, color: '#10b981' }       // emerald-500
+              ].filter(d => d.value > 0);
+
+              if (data.length === 0) return null;
+
+              return (
+                <ResponsiveContainer width="100%" height="80%">
+                  <PieChart>
+                    <Pie
+                      data={data}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={70}
+                      paddingAngle={5}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {data.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip 
+                      formatter={(value) => `₹${value.toLocaleString('en-IN')}`} 
+                      contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              );
+            })()}
+            <div className="tier-legend" style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: 'auto', marginBottom: '8px' }}>
+              <span className="tier-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3b82f6' }} /> Necessary</span>
+              <span className="tier-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} /> Discretionary</span>
+              <span className="tier-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-muted)' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }} /> Contingent</span>
             </div>
           </div>
         )}

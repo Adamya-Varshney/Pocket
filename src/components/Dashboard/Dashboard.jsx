@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Card from '../UI/Card';
 import SpendStory from './SpendStory';
+import CashflowChart from './CashflowChart';
 import './Dashboard.css';
 
 const Dashboard = ({ 
@@ -46,7 +47,18 @@ const Dashboard = ({
       d.setMonth(d.getMonth() - 1);
       const lastMonth = d.toISOString().slice(0, 7);
       filtered = transactions.filter(t => t.date?.startsWith(lastMonth));
+    } else if (filterState === 'last6') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 6);
+      const cutoff = d.toISOString().split('T')[0];
+      filtered = transactions.filter(t => t.date >= cutoff);
+    } else if (filterState === 'year') {
+      const thisYear = new Date().getFullYear().toString();
+      filtered = transactions.filter(t => t.date?.startsWith(thisYear));
     } else if (filterState === 'custom' && customMonthState) {
+      filtered = transactions.filter(t => t.date?.startsWith(customMonthState));
+    } else if (filterState === 'customYear' && customMonthState) {
+      // customMonthState stores just the year like "2026"
       filtered = transactions.filter(t => t.date?.startsWith(customMonthState));
     }
 
@@ -120,16 +132,23 @@ const Dashboard = ({
           <select 
             value={filterState}
             onChange={(e) => {
-              setFilterState(e.target.value);
-              if (e.target.value === 'custom' && !customMonthState) {
+              const val = e.target.value;
+              setFilterState(val);
+              if (val === 'custom' && !customMonthState) {
                 setCustomMonthState(new Date().toISOString().slice(0, 7));
+              }
+              if (val === 'customYear') {
+                setCustomMonthState(new Date().getFullYear().toString());
               }
             }}
             className="time-filter"
           >
             <option value="current">Current Month</option>
             <option value="last">Last Month</option>
+            <option value="last6">Last 6 Months</option>
+            <option value="year">This Year</option>
             <option value="custom">Specific Month</option>
+            <option value="customYear">Specific Year</option>
             <option value="all">All Time</option>
           </select>
           {filterState === 'custom' && (
@@ -156,12 +175,24 @@ const Dashboard = ({
               </select>
             </div>
           )}
+          {filterState === 'customYear' && (
+            <select 
+              value={customMonthState || new Date().getFullYear().toString()} 
+              onChange={(e) => setCustomMonthState(e.target.value)}
+              style={{
+                background: 'var(--card-bg)', color: 'var(--text)', border: '1px solid var(--border)',
+                borderRadius: '6px', padding: '4px 8px', fontSize: '14px', outline: 'none'
+              }}
+            >
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          )}
         </div>
       </header>
       
       <SpendStory 
         user={user} 
-        transactions={transactions}
+        transactions={stats.filteredTransactions}
         onViewAll={onViewInsights}
       />
 
@@ -219,6 +250,13 @@ const Dashboard = ({
           </Card>
         </div>
       </div>
+
+      <Card title="Cashflow Trends" className="chart-card cashflow-card">
+        <CashflowChart 
+          transactions={stats.filteredTransactions} 
+          filterState={filterState} 
+        />
+      </Card>
 
       <div className="dashboard-grid">
         <Card title="Spending by Category" className="chart-card">

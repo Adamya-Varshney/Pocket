@@ -361,3 +361,33 @@
 .txn-card:hover {
   background: var(--surface-light);
 }
+
+@media (max-width: 600px) {
+  .history-container {
+    padding: 16px;
+  }
+  .history-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .filter-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .history-summary-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .summary-divider {
+    width: 100%;
+    height: 1px;
+  }
+  .txn-card {
+    flex-wrap: wrap;
+  }
+  .txn-val {
+    font-size: 0.95rem;
+  }
+}

@@ -1,4 +1,4 @@
-import { LayoutDashboard, PlusCircle, History, User, Users } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, History, User, Users, Wallet } from 'lucide-react';
 import './Layout.css';
 
 const Layout = ({ children, activeTab, onTabChange }) => {
@@ -12,11 +12,11 @@ const Layout = ({ children, activeTab, onTabChange }) => {
 
   return (
     <div className="layout">
-      <main className="main-content">
-        {children}
-      </main>
-
-      <nav className="bottom-nav">
+      <nav className="app-nav">
+        <div className="nav-logo">
+          <Wallet size={28} color="var(--primary)" />
+          Pocket
+        </div>
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -31,6 +31,10 @@ const Layout = ({ children, activeTab, onTabChange }) => {
           );
         })}
       </nav>
+
+      <main className="main-content">
+        {children}
+      </main>
     </div>
   );
 };
