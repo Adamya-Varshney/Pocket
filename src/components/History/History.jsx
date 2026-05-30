@@ -109,7 +109,7 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
       if (activeType === 'settled' && (
         txn.status !== 'settled' || 
         txn.category?.toLowerCase() === 'salary' || 
-        (!txn.isDebt && txn.income_type !== 'Credit' && !txn.hasPayback)
+        (!txn.isDebt && txn.income_type !== 'Credit' && !txn.hasPayback && !txn.isRepayment)
       )) return false;
       if (activeCategory !== 'all' && txn.category !== activeCategory) return false;
       if (searchQuery && !txn.description?.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -318,9 +318,14 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
                       )}
 
                       {txn.isDebt && (
-                        <span className={`txn-payback-tag by-me ${txn.status}`}>
-                          {txn.status === 'settled' ? 'Paid to' : 'Owed to'} {txn.debtEntity}
-                        </span>
+                        <div className="liability-row">
+                          <span className={`txn-payback-tag by-me ${txn.status}`}>
+                            {txn.status === 'settled' ? 'Paid to' : 'Owed to'} {txn.debtEntity} • ₹{txn.status === 'pending' ? Number(txn.paybackAmount > 0 ? txn.paybackAmount : txn.amount).toLocaleString('en-IN') : Number(txn.amount).toLocaleString('en-IN')}
+                          </span>
+                          {txn.status === 'pending' && (
+                            <button className="settle-btn" onClick={() => handleSettle(txn.id)}>Mark Settled</button>
+                          )}
+                        </div>
                       )}
 
                       {txn.isRepayment && (

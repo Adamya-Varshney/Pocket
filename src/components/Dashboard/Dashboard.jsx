@@ -78,17 +78,17 @@ const Dashboard = ({
  
     const totalOwed = filtered
       .filter(t => t.type === 'expense' && t.hasPayback && t.status === 'pending')
-      .reduce((acc, curr) => acc + (curr.paybackAmount || 0), 0);
+      .reduce((acc, curr) => acc + (curr.paybackAmount > 0 ? curr.paybackAmount : curr.amount), 0);
       
     // Capture income explicitly marked as 'Credit' (liability)
     const creditIncome = filtered
       .filter(t => t.type === 'income' && t.income_type === 'Credit' && t.status === 'pending')
-      .reduce((acc, curr) => acc + curr.amount, 0);
+      .reduce((acc, curr) => acc + (curr.paybackAmount > 0 ? curr.paybackAmount : curr.amount), 0);
  
     // Calculate original 'Owed by You' from expenses
     const pureDebt = filtered
       .filter(t => t.type === 'expense' && t.isDebt && t.status === 'pending')
-      .reduce((acc, curr) => acc + curr.amount, 0);
+      .reduce((acc, curr) => acc + (curr.paybackAmount > 0 ? curr.paybackAmount : curr.amount), 0);
 
     // Combine standard expense-debt with borrowed credit-income
     const totalDebt = pureDebt + creditIncome;
