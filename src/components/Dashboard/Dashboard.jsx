@@ -12,6 +12,8 @@ import {
 import Card from '../UI/Card';
 import SpendStory from './SpendStory';
 import CashflowChart from './CashflowChart';
+import BreakdownPieChart from './BreakdownPieChart';
+import WaterfallChart from './WaterfallChart';
 import './Dashboard.css';
 
 const Dashboard = ({ 
@@ -251,14 +253,27 @@ const Dashboard = ({
         </div>
       </div>
 
-      <Card title="Cashflow Trends" className="chart-card cashflow-card">
-        <CashflowChart 
-          transactions={stats.filteredTransactions} 
-          filterState={filterState} 
-        />
-      </Card>
+      <div className="dashboard-grid">
+        <Card title="Cashflow Trends" className="chart-card cashflow-card">
+          <CashflowChart 
+            transactions={stats.filteredTransactions} 
+            filterState={filterState} 
+          />
+        </Card>
+
+        <Card title="Waterfall Flow" className="chart-card waterfall-card">
+          <WaterfallChart 
+            transactions={stats.filteredTransactions} 
+            filterState={filterState} 
+          />
+        </Card>
+      </div>
 
       <div className="dashboard-grid">
+        <Card title="Category Breakdown" className="chart-card pie-card">
+          <BreakdownPieChart transactions={stats.filteredTransactions} />
+        </Card>
+
         <Card title="Spending by Category" className="chart-card">
           <div className="category-list">
             {Object.entries(stats.categoryTotals).map(([cat, amount]) => {
