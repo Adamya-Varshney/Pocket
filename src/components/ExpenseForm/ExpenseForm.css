@@ -290,6 +290,118 @@
   margin-top: 8px;
 }
 
+/* ── Repayment Section ───────────────────────────────── */
+.repayment-section {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  border: 1px dashed var(--border);
+  transition: all 0.3s;
+}
+
+.repayment-section:has(input:checked) {
+  border-style: solid;
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.repayment-details {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.repayment-prompt {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.repayment-path-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.repayment-path-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-light);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  width: 100%;
+}
+
+.repayment-path-card:hover {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.repayment-path-card.active {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  box-shadow: 0 0 0 1px #f59e0b;
+}
+
+.repayment-path-card .path-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.repayment-path-card:hover .path-icon,
+.repayment-path-card.active .path-icon {
+  color: #f59e0b;
+}
+
+.repayment-path-card .path-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.repayment-path-card .path-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+  transition: color 0.2s;
+}
+
+.repayment-path-card.active .path-title {
+  color: #f59e0b;
+}
+
+.repayment-path-card .path-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.repayment-sub-field {
+  margin-top: 4px;
+}
+
+.no-pending-msg {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+  margin: 0;
+}
+
 .amount-input-wrapper.disabled {
   opacity: 0.5;
   pointer-events: none;

@@ -286,6 +286,11 @@
   color: #EC4899;
 }
 
+.txn-payback-tag.repayment {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
 .income-badge {
   background: rgba(0, 200, 83, 0.1);
   color: var(--success);

@@ -322,6 +322,12 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
                           {txn.status === 'settled' ? 'Paid to' : 'Owed to'} {txn.debtEntity}
                         </span>
                       )}
+
+                      {txn.isRepayment && (
+                        <span className="txn-payback-tag repayment">
+                          Repayment{txn.entity_name ? ` → ${txn.entity_name}` : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
 

@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   IndianRupee, Calendar, Tag, CreditCard, UserPlus, Clock,
   ArrowDownCircle, ArrowUpCircle, HandCoins,
-  Camera, Sparkles, Loader
+  Camera, Sparkles, Loader, RefreshCw, Link2, PlusCircle, FileText
 } from 'lucide-react';
 import Card from '../UI/Card';
 import Button from '../UI/Button';
@@ -15,7 +15,7 @@ import { normalizeMerchant, suggestCategory } from '../../utils/merchantUtils';
 
 const MODES = ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Net Banking', 'Cheque'];
 
-const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryAdded }) => {
+const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryAdded, transactions = [] }) => {
   const { user } = useAuth();
   const fileRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,8 +41,21 @@ const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryA
     paybackAmount: '',
     isDebt: false,
     debtEntity: '',
-    lentEntity: ''
+    lentEntity: '',
+    // ── Repayment fields ─────────────────────────────────
+    isRepayment: false,
+    repaymentMode: 'settle_existing', // 'settle_existing' | 'new_credit' | 'just_expense'
+    linkedTxnId: '',
+    repaymentEntity: ''
   });
+
+  // Pending credits/debts the user might want to repay against
+  const pendingCredits = useMemo(() =>
+    transactions.filter(t =>
+      (t.type === 'income' && t.income_type === 'Credit' && t.status === 'pending') ||
+      (t.liability_type === 'debt' && t.type === 'expense' && t.status === 'pending')
+    ),
+  [transactions]);
 
   // ── REAL-TIME AUTO-CATEGORIZATION ─────────────────────────────
   // Automatically suggest a category as the user types
@@ -75,7 +88,11 @@ const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryA
     setFormData(prev => ({
       ...prev,
       type,
-      category_id: '' // Force re-selection
+      category_id: '',
+      isRepayment: false,
+      repaymentMode: 'settle_existing',
+      linkedTxnId: '',
+      repaymentEntity: ''
     }));
   };
 
@@ -179,13 +196,122 @@ Return ONLY JSON.`;
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.amount || !formData.category_id || isSubmitting || !user) return;
-    
+    // Repayment path-specific guards
+    if (formData.isRepayment && formData.repaymentMode === 'settle_existing' && !formData.linkedTxnId && pendingCredits.length > 0) return;
+    if (formData.isRepayment && formData.repaymentMode === 'new_credit' && !formData.repaymentEntity.trim()) return;
+
     setIsSubmitting(true);
     setSubmitError('');
     try {
+
+      // ── REPAYMENT FLOW ────────────────────────────────────────────────────
+      if (formData.isRepayment) {
+        const linkedTxn = pendingCredits.find(t => t.id === formData.linkedTxnId);
+        const entityName =
+          formData.repaymentMode === 'settle_existing'
+            ? (linkedTxn?.entity_name || linkedTxn?.paybackEntity || null)
+            : formData.repaymentMode === 'new_credit'
+              ? (formData.repaymentEntity.trim() || null)
+              : null;
+
+        // Step 1 — Insert the repayment expense
+        const { data: repData, error: repError } = await supabase
+          .from('transactions')
+          .insert({
+            user_id: user.id,
+            account_id: formData.account_id || null,
+            category_id: formData.category_id,
+            type: 'expense',
+            income_type: null,
+            amount: parseFloat(formData.amount),
+            description: formData.description || (entityName ? `Repayment to ${entityName}` : 'Repayment'),
+            payment_mode: formData.paymentMode,
+            txn_date: formData.date,
+            txn_time: formData.time,
+            liability_type: 'repayment',
+            entity_name: entityName,
+            liability_amount: 0,
+            status: 'settled',
+            settled_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (repError) {
+          console.error('Repayment insert failed:', repError);
+          setSubmitError(`Failed to save repayment: ${repError.message}`);
+          return;
+        }
+        if (!repData) {
+          setSubmitError('Repayment could not be verified. Please check your history and try again.');
+          return;
+        }
+
+        // Step 2 (Path A) — Mark the linked transaction as settled
+        if (formData.repaymentMode === 'settle_existing' && formData.linkedTxnId) {
+          const { error: settleError } = await supabase
+            .from('transactions')
+            .update({ status: 'settled', settled_at: new Date().toISOString() })
+            .eq('id', formData.linkedTxnId);
+
+          if (settleError) {
+            setSubmitError(`Repayment recorded, but couldn't settle the original debt: ${settleError.message}`);
+            return;
+          }
+        }
+
+        // Step 3 (Path B) — Also insert a matching credit income entry
+        if (formData.repaymentMode === 'new_credit' && formData.repaymentEntity.trim()) {
+          const creditCat = categories.find(c =>
+            c.name?.toLowerCase() === 'credit' && c.type === 'income'
+          );
+          if (creditCat) {
+            const { error: creditError } = await supabase
+              .from('transactions')
+              .insert({
+                user_id: user.id,
+                account_id: formData.account_id || null,
+                category_id: creditCat.id,
+                type: 'income',
+                income_type: 'Credit',
+                amount: parseFloat(formData.amount),
+                description: `Borrowed from ${formData.repaymentEntity.trim()}`,
+                payment_mode: formData.paymentMode,
+                txn_date: formData.date,
+                txn_time: formData.time,
+                liability_type: 'payback',
+                entity_name: formData.repaymentEntity.trim(),
+                liability_amount: parseFloat(formData.amount),
+                status: 'settled',
+                settled_at: new Date().toISOString()
+              })
+              .select()
+              .single();
+
+            if (creditError) {
+              setSubmitError(`Repayment recorded, but couldn't create the credit entry: ${creditError.message}`);
+              return;
+            }
+          }
+        }
+
+        // Success — reset repayment fields and navigate
+        setFormData(prev => ({
+          ...prev,
+          amount: '',
+          isRepayment: false,
+          repaymentMode: 'settle_existing',
+          linkedTxnId: '',
+          repaymentEntity: ''
+        }));
+        onAddExpense();
+        return;
+      }
+
+      // ── STANDARD FLOW ──────────────────────────────────────────────────────
       const isLent = formData.type === 'lent';
       const actualType = isLent ? 'expense' : formData.type;
-      
+
       let finalPaybackAmount = 0;
       if (isLent) {
         finalPaybackAmount = formData.amount;
@@ -206,17 +332,17 @@ Return ONLY JSON.`;
         payment_mode: formData.paymentMode,
         txn_date: formData.date,
         txn_time: formData.time,
-        liability_type: isLent 
+        liability_type: isLent
           ? 'payback'
-          : (actualType === 'expense' 
+          : (actualType === 'expense'
               ? (formData.hasPayback ? 'payback' : (formData.isDebt ? 'debt' : 'none'))
               : 'none'),
-        entity_name: isLent 
+        entity_name: isLent
           ? formData.lentEntity
-          : (formData.hasPayback 
+          : (formData.hasPayback
               ? formData.paybackEntity
               : (formData.isDebt ? formData.debtEntity : null)),
-        liability_amount: isLent 
+        liability_amount: isLent
           ? parseFloat(formData.amount)
           : (formData.hasPayback
               ? parseFloat(finalPaybackAmount)
@@ -229,7 +355,6 @@ Return ONLY JSON.`;
         setSubmitError(`Failed to save: ${error.message}`);
         return;
       }
-
       if (!data) {
         console.error('Transaction insert returned no data — row may not have been persisted.');
         setSubmitError('Transaction could not be verified. Please check your history and try again.');
@@ -245,7 +370,11 @@ Return ONLY JSON.`;
         paybackAmount: '',
         isDebt: false,
         debtEntity: '',
-        lentEntity: ''
+        lentEntity: '',
+        isRepayment: false,
+        linkedTxnId: '',
+        repaymentEntity: '',
+        repaymentMode: 'settle_existing'
       }));
       onAddExpense();
     } catch (err) {
@@ -436,13 +565,100 @@ Return ONLY JSON.`;
 
           {formData.type === 'expense' && (
             <div className="extra-features">
-              <div className="payback-section">
-                <label className="checkbox-label" style={{ opacity: 0.5 }}>
-                  <input type="checkbox" disabled />
-                  <UserPlus size={16} /> Use the 'Lent' tab above to record money owed to you
+
+              {/* ── Repayment Section ────────────────────────── */}
+              <div className="repayment-section">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="isRepayment"
+                    checked={formData.isRepayment}
+                    onChange={handleChange}
+                    disabled={formData.isDebt}
+                  />
+                  <RefreshCw size={16} /> Repayment — I'm paying back a debt
                 </label>
+
+                {formData.isRepayment && (
+                  <div className="repayment-details animate-fade-in">
+                    <p className="repayment-prompt">How would you like to record this?</p>
+
+                    <div className="repayment-path-options">
+                      <button
+                        type="button"
+                        className={`repayment-path-card ${formData.repaymentMode === 'settle_existing' ? 'active' : ''}`}
+                        onClick={() => setFormData(p => ({ ...p, repaymentMode: 'settle_existing' }))}
+                      >
+                        <Link2 size={15} className="path-icon" />
+                        <div className="path-text">
+                          <span className="path-title">Settle an existing debt</span>
+                          <span className="path-desc">Link to a pending credit or debt entry</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`repayment-path-card ${formData.repaymentMode === 'new_credit' ? 'active' : ''}`}
+                        onClick={() => setFormData(p => ({ ...p, repaymentMode: 'new_credit' }))}
+                      >
+                        <PlusCircle size={15} className="path-icon" />
+                        <div className="path-text">
+                          <span className="path-title">New credit entry + settle</span>
+                          <span className="path-desc">The borrowing wasn't recorded — create &amp; close it</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`repayment-path-card ${formData.repaymentMode === 'just_expense' ? 'active' : ''}`}
+                        onClick={() => setFormData(p => ({ ...p, repaymentMode: 'just_expense' }))}
+                      >
+                        <FileText size={15} className="path-icon" />
+                        <div className="path-text">
+                          <span className="path-title">Just log as expense</span>
+                          <span className="path-desc">Simple record, flagged as a repayment</span>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Path A: pick from pending debts */}
+                    {formData.repaymentMode === 'settle_existing' && (
+                      <div className="form-group repayment-sub-field">
+                        <label>Select the debt to settle</label>
+                        {pendingCredits.length === 0 ? (
+                          <p className="no-pending-msg">No pending debts found — choose another option above.</p>
+                        ) : (
+                          <select name="linkedTxnId" value={formData.linkedTxnId} onChange={handleChange}>
+                            <option value="">— Select a debt —</option>
+                            {pendingCredits.map(t => (
+                              <option key={t.id} value={t.id}>
+                                {t.entity_name || t.paybackEntity || t.description || 'Unknown'}
+                                {' '}— ₹{Number(t.amount).toLocaleString('en-IN')} ({t.date})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Path B: new credit entity */}
+                    {formData.repaymentMode === 'new_credit' && (
+                      <div className="form-group repayment-sub-field">
+                        <label>Who did you borrow from?</label>
+                        <input
+                          type="text"
+                          name="repaymentEntity"
+                          placeholder="e.g. Rahul / HDFC Credit Card"
+                          value={formData.repaymentEntity}
+                          onChange={handleChange}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
+              {/* ── Borrowed / Debt Section ──────────────────── */}
               <div className="debt-section">
                 <label className="checkbox-label">
                   <input
@@ -450,7 +666,7 @@ Return ONLY JSON.`;
                     name="isDebt"
                     checked={formData.isDebt}
                     onChange={handleChange}
-                    disabled={formData.hasPayback}
+                    disabled={formData.hasPayback || formData.isRepayment}
                   />
                   <HandCoins size={16} /> Borrowed / Paid by someone Else
                 </label>
@@ -479,13 +695,24 @@ Return ONLY JSON.`;
           <p className="scan-error" style={{ textAlign: 'center', marginBottom: 8 }}>{submitError}</p>
         )}
 
-        <Button 
-          fullWidth 
-          className={`submit-btn ${formData.type}`} 
+        <Button
+          fullWidth
+          className={`submit-btn ${formData.type}`}
           size="lg"
-          disabled={isSubmitting || !formData.amount || !formData.category_id}
+          disabled={
+            isSubmitting ||
+            !formData.amount ||
+            !formData.category_id ||
+            (formData.isRepayment && formData.repaymentMode === 'settle_existing' && !formData.linkedTxnId && pendingCredits.length > 0) ||
+            (formData.isRepayment && formData.repaymentMode === 'new_credit' && !formData.repaymentEntity.trim())
+          }
         >
-          {isSubmitting ? 'Recording...' : `Add ${formData.type === 'expense' ? 'Expense' : 'Income'}`}
+          {isSubmitting
+            ? 'Recording...'
+            : formData.isRepayment
+              ? 'Record Repayment'
+              : `Add ${formData.type === 'expense' ? 'Expense' : 'Income'}`
+          }
         </Button>
       </form>
     </Card>

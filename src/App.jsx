@@ -66,6 +66,7 @@ function AppComponent() {
           paymentMode:  t.payment_mode,
           hasPayback:   t.liability_type === 'payback',
           isDebt:       t.liability_type === 'debt',
+          isRepayment:  t.liability_type === 'repayment',
           paybackEntity: t.entity_name,
           debtEntity:    t.entity_name,
           paybackAmount: t.liability_amount,
@@ -214,10 +215,11 @@ function AppComponent() {
         )}
         
         {activeTab === 'add' && (
-          <ExpenseForm 
-            onAddExpense={handleAddTransaction} 
+          <ExpenseForm
+            onAddExpense={handleAddTransaction}
             categories={categories}
             accounts={accounts}
+            transactions={transactions}
             onCategoryAdded={fetchData}
           />
         )}
