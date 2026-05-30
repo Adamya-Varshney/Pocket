@@ -4,6 +4,7 @@ import {
   Smartphone, UploadCloud, Download, Lock, CheckCircle2, AlertTriangle, X, LogOut 
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { useAuth } from '../../context/AuthContext';
 import Card from '../UI/Card';
 import Button from '../UI/Button';
 import './PrivacySecuritySection.css';
@@ -32,6 +33,7 @@ const Toggle = ({ checked, onChange }) => (
 const MOCK_BACKUP_CODES = ['A1B2-C3D4', 'E5F6-G7H8', 'I9J0-K1L2', 'M3N4-O5P6', 'Q7R8-S9T0', 'U1V2-W3X4', 'Y5Z6-A7B8', 'C9D0-E1F2'];
 
 const PrivacySecuritySection = () => {
+  const { user, updateProfile } = useAuth();
   const [sessions, setSessions] = useState(INITIAL_SESSIONS);
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [exports, setExports] = useState(INITIAL_EXPORTS);
@@ -43,8 +45,14 @@ const PrivacySecuritySection = () => {
   const [aiImprovement, setAiImprovement] = useState(false);
 
   // Modals state
-  const [modalMode, setModalMode] = useState(null); // '2fa-setup', '2fa-disable', 'delete-account'
+  const [modalMode, setModalMode] = useState(null); // '2fa-setup', '2fa-disable', 'delete-account', 'setup-pin', 'change-pin'
   
+  // PIN Flow
+  const [pinInput, setPinInput] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinCurrent, setPinCurrent] = useState('');
+  const [pinError, setPinError] = useState('');
+
   // 2FA Flow
   const [twoFaStep, setTwoFaStep] = useState(1);
   const [totpCode, setTotpCode] = useState('');
@@ -162,6 +170,68 @@ const PrivacySecuritySection = () => {
     return null;
   };
 
+  const handleSavePin = async () => {
+    if (pinInput.length !== 4 || pinConfirm.length !== 4) {
+      setPinError('PIN must be 4 digits.');
+      return;
+    }
+    if (pinInput !== pinConfirm) {
+      setPinError('PINs do not match.');
+      return;
+    }
+    if (modalMode === 'change-pin' && pinCurrent !== user?.preferences?.transaction_pin) {
+      setPinError('Current PIN is incorrect.');
+      return;
+    }
+    
+    const prefs = { ...(user?.preferences || {}), transaction_pin: pinInput };
+    const { error } = await updateProfile({ preferences: prefs });
+    if (error) {
+      setPinError('Failed to save PIN.');
+    } else {
+      setModalMode(null);
+      setPinInput('');
+      setPinConfirm('');
+      setPinCurrent('');
+      setPinError('');
+    }
+  };
+
+  const renderPinModal = () => {
+    if (modalMode !== 'setup-pin' && modalMode !== 'change-pin') return null;
+
+    return (
+      <div className="security-modal animate-fade-in">
+        <div className="security-modal-content">
+          <button className="close-btn" onClick={() => { setModalMode(null); setPinError(''); }}><X size={20}/></button>
+          <h2>{modalMode === 'change-pin' ? 'Change Transaction PIN' : 'Set up Transaction PIN'}</h2>
+          <p className="modal-desc">This 4-digit PIN is required to edit or backdate any recorded transactions.</p>
+          
+          {pinError && <div className="error-text" style={{ color: '#ef4444', fontSize: '14px', marginBottom: '12px' }}>{pinError}</div>}
+          
+          {modalMode === 'change-pin' && (
+            <div className="input-group">
+              <label>Current PIN</label>
+              <input type="password" maxLength={4} placeholder="••••" value={pinCurrent} onChange={e => setPinCurrent(e.target.value.replace(/\D/g, ''))} />
+            </div>
+          )}
+          <div className="input-group mt-2">
+            <label>New PIN</label>
+            <input type="password" maxLength={4} placeholder="••••" value={pinInput} onChange={e => setPinInput(e.target.value.replace(/\D/g, ''))} />
+          </div>
+          <div className="input-group mt-2">
+            <label>Confirm New PIN</label>
+            <input type="password" maxLength={4} placeholder="••••" value={pinConfirm} onChange={e => setPinConfirm(e.target.value.replace(/\D/g, ''))} />
+          </div>
+          
+          <div className="modal-actions mt-4">
+             <Button fullWidth onClick={handleSavePin}>Save PIN</Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderDeletionModal = () => {
     if (modalMode !== 'delete-account') return null;
 
@@ -268,7 +338,32 @@ const PrivacySecuritySection = () => {
         </div>
       </Card>
 
-      {/* ─── 2. 2FA ─────────────────────────────────────────── */}
+      {/* ─── 2. Transaction PIN ──────────────────────────────── */}
+      <Card className="security-card">
+        <div className="card-section-header">
+           <div className="title-group">
+              <Lock size={20} className={user?.preferences?.transaction_pin ? "icon-green" : "icon-gray"} />
+              <div>
+                <h3 className="card-section-title">Transaction Edit PIN</h3>
+                <p className="card-section-desc">Required to edit or backdate recorded transactions</p>
+              </div>
+           </div>
+           <div className={`status-badge ${user?.preferences?.transaction_pin ? 'enabled' : 'disabled'}`}>
+             {user?.preferences?.transaction_pin ? 'Configured' : 'Not Set'}
+           </div>
+        </div>
+        <div className="twofa-actions">
+           {!user?.preferences?.transaction_pin ? (
+             <Button onClick={() => { setPinInput(''); setPinConfirm(''); setModalMode('setup-pin'); }}>Set up PIN</Button>
+           ) : (
+             <div className="twofa-active-actions">
+                <Button variant="secondary" onClick={() => { setPinCurrent(''); setPinInput(''); setPinConfirm(''); setModalMode('change-pin'); }}>Change PIN</Button>
+             </div>
+           )}
+        </div>
+      </Card>
+
+      {/* ─── 3. 2FA ─────────────────────────────────────────── */}
       <Card className="security-card">
         <div className="card-section-header">
            <div className="title-group">
@@ -294,7 +389,7 @@ const PrivacySecuritySection = () => {
         </div>
       </Card>
 
-      {/* ─── 3. Data Export ─────────────────────────────────── */}
+      {/* ─── 4. Data Export ─────────────────────────────────── */}
       <Card className="security-card">
         <div className="card-section-header">
            <div className="title-group">
@@ -392,6 +487,7 @@ const PrivacySecuritySection = () => {
 
       {render2FAModal()}
       {renderDeletionModal()}
+      {renderPinModal()}
     </div>
   );
 };

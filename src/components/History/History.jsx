@@ -2,12 +2,13 @@ import { useState, useMemo, useEffect } from 'react';
 import { isToday, isYesterday, isThisWeek, isThisMonth, isThisYear } from 'date-fns';
 import {
   ArrowDownRight, ArrowUpLeft, Search, Filter, MoreVertical,
-  Calendar, Layers, Info, Tag, Upload
+  Calendar, Layers, Info, Tag, Upload, PenSquare, X
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import Card from '../UI/Card';
 import Button from '../UI/Button';
+import EditTransactionModal from './EditTransactionModal';
 import './History.css';
 import './StatementReview.css';
 import { getCategoryIcon } from '../../utils/categoryIcons';
@@ -32,7 +33,7 @@ const formatAmount = (amount, prefs = {}) => {
 };
 
 const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferences = {}, categories = [], onShowReview }) => {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const defaultSort = userPreferences?.defaultSort || 'newest';
 
   const [activeType, setActiveType] = useState(initialFilter);
@@ -41,6 +42,16 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState(defaultSort);
   const [pendingCount, setPendingCount] = useState(0);
+
+  const [activeMenuTxnId, setActiveMenuTxnId] = useState(null);
+  const [editingTxn, setEditingTxn] = useState(null);
+  
+  // PIN Auth States
+  const [pinModalMode, setPinModalMode] = useState(null); // 'setup', 'verify'
+  const [pinInput, setPinInput] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pendingEditTxn, setPendingEditTxn] = useState(null);
 
   // Pull display toggles from preferences
   const showAccountName = userPreferences?.showAccountName ?? true;
@@ -58,6 +69,60 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
       console.error(err);
     }
   };
+
+  const handleEditClick = (txn) => {
+    setActiveMenuTxnId(null);
+    const configuredPin = user?.preferences?.transaction_pin;
+    
+    if (!configuredPin) {
+      setPendingEditTxn(txn);
+      setPinModalMode('setup');
+    } else {
+      setPendingEditTxn(txn);
+      setPinModalMode('verify');
+    }
+  };
+
+  const handlePinSubmit = async () => {
+    setPinError('');
+    if (pinModalMode === 'setup') {
+      if (pinInput.length !== 4 || pinConfirm.length !== 4) {
+        setPinError('PIN must be 4 digits.');
+        return;
+      }
+      if (pinInput !== pinConfirm) {
+        setPinError('PINs do not match.');
+        return;
+      }
+      const prefs = { ...(user?.preferences || {}), transaction_pin: pinInput };
+      const { error } = await updateProfile({ preferences: prefs });
+      if (error) {
+        setPinError('Failed to save PIN.');
+        return;
+      }
+      setPinModalMode(null);
+      setEditingTxn(pendingEditTxn);
+      setPendingEditTxn(null);
+      setPinInput('');
+      setPinConfirm('');
+    } else if (pinModalMode === 'verify') {
+      if (pinInput !== user?.preferences?.transaction_pin) {
+        setPinError('Incorrect PIN.');
+        return;
+      }
+      setPinModalMode(null);
+      setEditingTxn(pendingEditTxn);
+      setPendingEditTxn(null);
+      setPinInput('');
+    }
+  };
+
+  // Close menu if clicked outside
+  useEffect(() => {
+    const handleClick = () => setActiveMenuTxnId(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
 
   // Fetch count of pending statement_rows so we can show the review banner
   const fetchPendingCount = async () => {
@@ -349,7 +414,18 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
                     </div>
                   </div>
 
-                  <button className="txn-more"><MoreVertical size={16} /></button>
+                  <div className="txn-menu-container" onClick={(e) => e.stopPropagation()}>
+                    <button className="txn-more" onClick={() => setActiveMenuTxnId(activeMenuTxnId === txn.id ? null : txn.id)}>
+                      <MoreVertical size={16} />
+                    </button>
+                    {activeMenuTxnId === txn.id && (
+                      <div className="txn-dropdown-menu animate-scale-in">
+                        <button onClick={() => handleEditClick(txn)}>
+                          <PenSquare size={14} /> Edit
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -367,6 +443,50 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
           </Card>
         )}
       </div>
+
+      {pinModalMode && (
+        <div className="security-modal animate-fade-in" style={{ zIndex: 10000 }}>
+          <div className="security-modal-content">
+            <button className="close-btn" onClick={() => { setPinModalMode(null); setPinInput(''); setPinConfirm(''); setPinError(''); }}><X size={20}/></button>
+            <h2>{pinModalMode === 'setup' ? 'Set up Transaction PIN' : 'Enter Transaction PIN'}</h2>
+            <p className="modal-desc">
+              {pinModalMode === 'setup' 
+                ? 'Create a 4-digit PIN to secure transaction editing and backdating.' 
+                : 'Enter your 4-digit PIN to edit this transaction.'}
+            </p>
+            
+            {pinError && <div className="error-text" style={{ color: '#ef4444', fontSize: '14px', marginBottom: '12px' }}>{pinError}</div>}
+            
+            <div className="input-group mt-2">
+              <label>{pinModalMode === 'setup' ? 'New PIN' : 'PIN'}</label>
+              <input type="password" maxLength={4} placeholder="••••" value={pinInput} onChange={e => setPinInput(e.target.value.replace(/\D/g, ''))} />
+            </div>
+            
+            {pinModalMode === 'setup' && (
+              <div className="input-group mt-2">
+                <label>Confirm PIN</label>
+                <input type="password" maxLength={4} placeholder="••••" value={pinConfirm} onChange={e => setPinConfirm(e.target.value.replace(/\D/g, ''))} />
+              </div>
+            )}
+            
+            <div className="modal-actions mt-4">
+               <Button fullWidth onClick={handlePinSubmit}>Submit</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingTxn && (
+        <EditTransactionModal 
+          transaction={editingTxn}
+          categories={categories}
+          onClose={() => setEditingTxn(null)}
+          onSave={() => {
+            setEditingTxn(null);
+            onRefresh(); // Trigger a data refresh after save
+          }}
+        />
+      )}
     </div>
   );
 };
