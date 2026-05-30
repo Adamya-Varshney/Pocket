@@ -328,6 +328,19 @@ const History = ({ transactions, initialFilter = 'all', onRefresh, userPreferenc
                           Repayment{txn.entity_name ? ` → ${txn.entity_name}` : ''}
                         </span>
                       )}
+
+                      {/* Outstanding balance for pending Credit income entries */}
+                      {txn.type === 'income' && txn.income_type === 'Credit' && txn.status === 'pending' && (
+                        <div className="liability-row">
+                          <span className="txn-payback-tag by-me">
+                            Outstanding: ₹{Number(
+                              txn.paybackAmount > 0 ? txn.paybackAmount : txn.amount
+                            ).toLocaleString('en-IN')}
+                            {txn.entity_name ? ` — owed to ${txn.entity_name}` : ''}
+                          </span>
+                          <button className="settle-btn" onClick={() => handleSettle(txn.id)}>Mark Settled</button>
+                        </div>
+                      )}
                     </div>
                   </div>
 

@@ -209,7 +209,8 @@ Return ONLY JSON.`;
         const linkedTxn = pendingCredits.find(t => t.id === formData.linkedTxnId);
         const entityName =
           formData.repaymentMode === 'settle_existing'
-            ? (linkedTxn?.entity_name || linkedTxn?.paybackEntity || null)
+            // description is the fallback for Credit income entries where entity_name is null
+            ? (linkedTxn?.entity_name || linkedTxn?.paybackEntity || linkedTxn?.description || null)
             : formData.repaymentMode === 'new_credit'
               ? (formData.repaymentEntity.trim() || null)
               : null;
@@ -247,15 +248,28 @@ Return ONLY JSON.`;
           return;
         }
 
-        // Step 2 (Path A) — Mark the linked transaction as settled
+        // Step 2 (Path A) — Partial or full settlement of the linked transaction
         if (formData.repaymentMode === 'settle_existing' && formData.linkedTxnId) {
+          const repaymentAmt = parseFloat(formData.amount);
+          // liability_amount starts at 0 for Credit income (only set on debt expenses),
+          // so fall back to the full transaction amount as the starting outstanding balance.
+          const outstandingAmt =
+            (linkedTxn?.liability_amount > 0 ? linkedTxn.liability_amount : linkedTxn?.amount) || 0;
+          const remaining = outstandingAmt - repaymentAmt;
+
+          // Full repayment (or overpayment) → mark settled.
+          // Partial repayment → reduce outstanding balance, keep pending.
+          const updatePayload = remaining <= 0
+            ? { status: 'settled', settled_at: new Date().toISOString(), liability_amount: 0 }
+            : { liability_amount: remaining };
+
           const { error: settleError } = await supabase
             .from('transactions')
-            .update({ status: 'settled', settled_at: new Date().toISOString() })
+            .update(updatePayload)
             .eq('id', formData.linkedTxnId);
 
           if (settleError) {
-            setSubmitError(`Repayment recorded, but couldn't settle the original debt: ${settleError.message}`);
+            setSubmitError(`Repayment recorded, but couldn't update the original debt: ${settleError.message}`);
             return;
           }
         }
@@ -633,7 +647,9 @@ Return ONLY JSON.`;
                             {pendingCredits.map(t => (
                               <option key={t.id} value={t.id}>
                                 {t.entity_name || t.paybackEntity || t.description || 'Unknown'}
-                                {' '}— ₹{Number(t.amount).toLocaleString('en-IN')} ({t.date})
+                                {' '}— Outstanding: ₹{Number(
+                                  t.liability_amount > 0 ? t.liability_amount : t.amount
+                                ).toLocaleString('en-IN')} ({t.date})
                               </option>
                             ))}
                           </select>
