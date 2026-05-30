@@ -148,11 +148,6 @@ function AppComponent() {
       setHistoryFilter(filter);
     }
   };
-
-  const activeAccountIds = useMemo(() => 
-    accounts.filter(a => a.status === 'active').map(a => a.id),
-  [accounts]);
-
   const financialMonthRange = useMemo(() => {
     const today = new Date();
     // Read from the enriched user profile (contains DB columns like month_start_date)
@@ -173,11 +168,10 @@ function AppComponent() {
   }, [user?.month_start_date]);
 
   const visibleTransactions = useMemo(() => {
-    // If accounts haven't loaded yet, show all transactions
-    // Once loaded, filter to transactions from active accounts (or no account)
-    if (accounts.length === 0) return transactions;
-    return transactions.filter(t => !t.accountId || activeAccountIds.includes(t.accountId));
-  }, [transactions, activeAccountIds, accounts.length]);
+    // Show transactions from all accounts (both active and paused).
+    // Pausing an account halts automatic syncs, but historical manual ledger entries must remain visible.
+    return transactions;
+  }, [transactions]);
 
   const normalizedTransactions = useMemo(() => {
     return visibleTransactions.map(t => ({

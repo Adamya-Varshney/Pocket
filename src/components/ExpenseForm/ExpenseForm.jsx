@@ -21,6 +21,7 @@ const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryA
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
 
@@ -180,6 +181,7 @@ Return ONLY JSON.`;
     if (!formData.amount || !formData.category_id || isSubmitting || !user) return;
     
     setIsSubmitting(true);
+    setSubmitError('');
     try {
       const isLent = formData.type === 'lent';
       const actualType = isLent ? 'expense' : formData.type;
@@ -193,7 +195,7 @@ Return ONLY JSON.`;
         else finalPaybackAmount = formData.paybackAmount;
       }
 
-      const { error } = await supabase.from('transactions').insert({
+      const { data, error } = await supabase.from('transactions').insert({
         user_id: user.id,
         account_id: formData.account_id || null,
         category_id: formData.category_id,
@@ -220,23 +222,35 @@ Return ONLY JSON.`;
               ? parseFloat(finalPaybackAmount)
               : (formData.isDebt ? parseFloat(formData.amount) : 0)),
         status: (isLent || formData.hasPayback || formData.isDebt || (actualType === 'income' && formData.income_type === 'Credit')) ? 'pending' : 'settled'
-      });
+      }).select().single();
 
-      if (!error) {
-        setFormData(prev => ({
-          ...prev,
-          amount: '',
-          hasPayback: false,
-          paybackEntity: '',
-          paybackAmount: '',
-          isDebt: false,
-          debtEntity: '',
-          lentEntity: ''
-        }));
-        onAddExpense();
+      if (error) {
+        console.error('Transaction insert failed:', error);
+        setSubmitError(`Failed to save: ${error.message}`);
+        return;
       }
+
+      if (!data) {
+        console.error('Transaction insert returned no data — row may not have been persisted.');
+        setSubmitError('Transaction could not be verified. Please check your history and try again.');
+        return;
+      }
+
+      // Insert confirmed — reset form and navigate
+      setFormData(prev => ({
+        ...prev,
+        amount: '',
+        hasPayback: false,
+        paybackEntity: '',
+        paybackAmount: '',
+        isDebt: false,
+        debtEntity: '',
+        lentEntity: ''
+      }));
+      onAddExpense();
     } catch (err) {
-      console.error(err);
+      console.error('Transaction submit exception:', err);
+      setSubmitError(`Unexpected error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -460,6 +474,10 @@ Return ONLY JSON.`;
             </div>
           )}
         </div>
+
+        {submitError && (
+          <p className="scan-error" style={{ textAlign: 'center', marginBottom: 8 }}>{submitError}</p>
+        )}
 
         <Button 
           fullWidth 
