@@ -159,6 +159,7 @@ Extract the details into a STRICT JSON object with no wrapping markdown or trail
 Keys must be exactly:
 - "amount": number (extract just the numeric value paid)
 - "date": string (format as "YYYY-MM-DD", fallback to empty string if missing)
+- "dateConfidence": number (between 0 and 100 representing how confident you are that you extracted the correct transaction date from the image. If no date is clearly visible, return 0)
 - "time": string (format as "HH:MM", 24hr, fallback to empty string if missing)
 - "description": string (the merchant name, person paid, or user note)
 - "paymentMode": string (analyze the image and map precisely to ONE of these: "UPI", "Cash", "Credit Card", "Debit Card", "Net Banking", "Cheque". Default to "UPI" if it's GPay/PhonePe and you can't tell, "Cash" if physical receipt unless stated otherwise)
@@ -181,10 +182,20 @@ Return ONLY JSON.`;
       const pickedCategory = categories.find(c => c.id === data.category_id);
       const suggestedCat = pickedCategory || suggestCategory(normalized, categories);
 
+      let finalDate = prev.date;
+      if (data.date && data.dateConfidence > 80) {
+        finalDate = data.date;
+      } else if (data.date) {
+        alert("The scanner isn't fully confident about the date on this receipt. Please manually verify and feed in the correct date.");
+        // We still set it to their current date so they can change it if they want
+      } else {
+        alert("No clear date was found on this receipt. Please manually feed in the correct date.");
+      }
+
       setFormData(prev => ({
         ...prev,
         amount: data.amount ? String(data.amount) : prev.amount,
-        date: data.date || prev.date,
+        date: finalDate,
         time: data.time || prev.time,
         description: normalized || data.description || prev.description,
         paymentMode: MODES.includes(data.paymentMode) ? data.paymentMode : prev.paymentMode,
