@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   IndianRupee, Calendar, Tag, CreditCard, UserPlus, Clock,
   ArrowDownCircle, ArrowUpCircle, HandCoins,
-  Camera, Sparkles, Loader, RefreshCw, Link2, PlusCircle, FileText
+  Camera, Sparkles, Loader, RefreshCw, Link2, PlusCircle, FileText, Upload
 } from 'lucide-react';
 import Card from '../UI/Card';
 import Button from '../UI/Button';
@@ -18,6 +18,7 @@ const MODES = ['UPI', 'Cash', 'Credit Card', 'Debit Card', 'Net Banking', 'Chequ
 const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryAdded, transactions = [] }) => {
   const { user } = useAuth();
   const fileRef = useRef(null);
+  const uploadRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState('');
@@ -209,6 +210,7 @@ Return ONLY JSON.`;
       setIsScanning(false);
       // Reset input so they can scan the same file again if they want
       if (fileRef.current) fileRef.current.value = '';
+      if (uploadRef.current) uploadRef.current.value = '';
     }
   };
 
@@ -446,23 +448,45 @@ Return ONLY JSON.`;
       </div>
 
       <div className="ai-scanner-section">
-        <button 
-          type="button" 
-          className={`ai-scan-btn ${isScanning ? 'scanning' : ''}`}
-          onClick={() => fileRef.current?.click()}
-          disabled={isScanning}
-        >
-          {isScanning ? (
-            <><Loader size={16} className="spin" /> Reading Receipt...</>
-          ) : (
-            <><Camera size={16} /> Scan Receipt <Sparkles size={14} className="sparkle" /></>
-          )}
-        </button>
+        <div className="scan-actions" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button 
+            type="button" 
+            className={`ai-scan-btn ${isScanning ? 'scanning' : ''}`}
+            onClick={() => fileRef.current?.click()}
+            disabled={isScanning}
+          >
+            {isScanning ? (
+              <><Loader size={16} className="spin" /> Reading...</>
+            ) : (
+              <><Camera size={16} /> Camera <Sparkles size={14} className="sparkle" /></>
+            )}
+          </button>
+          <button 
+            type="button" 
+            className={`ai-scan-btn ${isScanning ? 'scanning' : ''}`}
+            onClick={() => uploadRef.current?.click()}
+            disabled={isScanning}
+            style={{ background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(59, 130, 246, 0.1))', borderColor: 'rgba(56, 189, 248, 0.4)', color: '#38bdf8' }}
+          >
+            {isScanning ? (
+              <><Loader size={16} className="spin" /> Reading...</>
+            ) : (
+              <><Upload size={16} /> Upload <Sparkles size={14} className="sparkle" style={{ color: '#3b82f6' }} /></>
+            )}
+          </button>
+        </div>
         <input 
           type="file" 
           accept="image/*" 
           capture="environment" 
           ref={fileRef} 
+          style={{ display: 'none' }} 
+          onChange={handleSnapshotUpload} 
+        />
+        <input 
+          type="file" 
+          accept="image/*,application/pdf" 
+          ref={uploadRef} 
           style={{ display: 'none' }} 
           onChange={handleSnapshotUpload} 
         />
