@@ -182,7 +182,7 @@ Return ONLY JSON.`;
       const pickedCategory = categories.find(c => c.id === data.category_id);
       const suggestedCat = pickedCategory || suggestCategory(normalized, categories);
 
-      let finalDate = prev.date;
+      let finalDate = formData.date;
       if (data.date && data.dateConfidence > 80) {
         finalDate = data.date;
       } else if (data.date) {
