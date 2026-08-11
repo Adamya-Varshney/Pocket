@@ -147,6 +147,12 @@ const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryA
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
+      const mappedType = formData.type === 'lent' ? 'expense' : formData.type;
+      const availableCategories = categories
+        .filter(c => c.type === mappedType || c.type === 'all')
+        .map(c => `{ id: "${c.id}", name: "${c.name}" }`)
+        .join(', ');
+
       const prompt = `You are an expert financial receipt and payment screenshot data extractor.
 Analyze this payment snippet (like an offline receipt, Google Pay, or PhonePe completion screen).
 Extract the details into a STRICT JSON object with no wrapping markdown or trailing comments.
@@ -156,6 +162,7 @@ Keys must be exactly:
 - "time": string (format as "HH:MM", 24hr, fallback to empty string if missing)
 - "description": string (the merchant name, person paid, or user note)
 - "paymentMode": string (analyze the image and map precisely to ONE of these: "UPI", "Cash", "Credit Card", "Debit Card", "Net Banking", "Cheque". Default to "UPI" if it's GPay/PhonePe and you can't tell, "Cash" if physical receipt unless stated otherwise)
+- "category_id": string (pick the most relevant category ID for this transaction from the following list of available categories: [${availableCategories}]. If none match well, return an empty string)
 
 Return ONLY JSON.`;
 
@@ -171,7 +178,8 @@ Return ONLY JSON.`;
       // Hydrate form
       const merchantOverrides = user?.preferences?.merchantOverrides || {};
       const normalized = normalizeMerchant(data.description || '', merchantOverrides);
-      const suggestedCat = suggestCategory(normalized, categories);
+      const pickedCategory = categories.find(c => c.id === data.category_id);
+      const suggestedCat = pickedCategory || suggestCategory(normalized, categories);
 
       setFormData(prev => ({
         ...prev,
