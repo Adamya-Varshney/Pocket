@@ -145,7 +145,7 @@ const ExpenseForm = ({ onAddExpense, categories = [], accounts = [], onCategoryA
       const base64 = await base64Promise;
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
       const prompt = `You are an expert financial receipt and payment screenshot data extractor.
 Analyze this payment snippet (like an offline receipt, Google Pay, or PhonePe completion screen).
