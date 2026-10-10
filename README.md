@@ -90,7 +90,8 @@ Pocket is a personal finance management app for India, focusing on automated cat
 
 ### Figure 1: Feature Status Breakdown
 ```mermaid
-pie title Feature Implementation Status
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","pie1":"#10B981","pie2":"#F59E0B","pieStrokeColor":"#FFFFFF","pieStrokeWidth":"3px","pieOuterStrokeColor":"#E2E8F0","pieOuterStrokeWidth":"2px","pieSectionTextColor":"#FFFFFF","pieSectionTextSize":"16px","pieTitleTextColor":"#6366F1","pieTitleTextSize":"18px","pieLegendTextColor":"#64748B","pieLegendTextSize":"14px","pieOpacity":"1"}}}%%
+pie showData title Feature Implementation Status
   "LIVE" : 4
   "PARTIAL" : 1
 ```
@@ -98,6 +99,7 @@ pie title Feature Implementation Status
 
 ### Figure 2: Core User Journey
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","textColor":"#64748B","fillType0":"#DBEAFE","fillType1":"#D1FAE5","fillType2":"#EDE9FE","fillType3":"#DBEAFE","fillType4":"#D1FAE5","fillType5":"#EDE9FE","fillType6":"#DBEAFE","fillType7":"#D1FAE5","primaryColor":"#FFFFFF","primaryBorderColor":"#2563EB","primaryTextColor":"#0F172A","lineColor":"#94A3B8","faceColor":"#FDE68A","actorBkg":"#6366F1","actor0":"#6366F1"},"journey":{"actorColours":["#6366F1"],"sectionFills":["#DBEAFE","#D1FAE5","#EDE9FE"],"sectionColours":["#1D4ED8","#047857","#6D28D9"]}}}%%
 journey
     title Pocket User Journey
     section Onboarding
@@ -117,39 +119,57 @@ journey
 
 ### Figure 3: System Architecture
 ```mermaid
-flowchart TD
-    subgraph Client [Frontend SPA]
-        A(React + Vite)
-        B(Supabase Client)
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","fontSize":"14px","primaryColor":"#DBEAFE","primaryTextColor":"#0F172A","primaryBorderColor":"#2563EB","lineColor":"#64748B","edgeLabelBackground":"#FFFFFF","clusterBkg":"#F8FAFC","clusterBorder":"#CBD5E1"},"flowchart":{"curve":"basis","nodeSpacing":45,"rankSpacing":55,"padding":14}}}%%
+flowchart LR
+    subgraph Client["🖥️ Frontend SPA"]
+        A["⚛️ React + Vite"]
+        B["🔌 Supabase Client"]
     end
-    subgraph Cloud [Supabase]
-        C[(PostgreSQL DB)]
-        D(Auth)
-        E(Edge Function: generate-spend-story)
+    subgraph Cloud["☁️ Supabase"]
+        D["🔐 Auth"]
+        C[("🐘 PostgreSQL DB")]
+        E["⚡ Edge Function<br/><b>generate-spend-story</b>"]
     end
-    subgraph ThirdParty [Integrations]
-        F(OneSignal)
-        G(Gemini AI)
+    subgraph ThirdParty["🌐 Integrations"]
+        F["🔔 OneSignal"]
+        G["✨ Gemini AI"]
     end
-    
+
     A <-->|REST/Websockets| B
-    B <-->|RPC & Queries| C
     B <-->|JWT| D
-    E -->|Reads Txns| C
-    E -->|Writes Insights| C
+    B <-->|RPC & Queries| C
+    C <-->|Reads Txns / Writes Insights| E
     E -->|Push Alert| F
     A -->|Prompts| G
+    classDef client fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#0F172A
+    classDef cloud fill:#D1FAE5,stroke:#059669,stroke-width:2px,color:#0F172A
+    classDef ext fill:#EDE9FE,stroke:#7C3AED,stroke-width:2px,color:#0F172A
+    class A,B client
+    class C,D,E cloud
+    class F,G ext
+    style Client fill:#EFF6FF,stroke:#3B82F6,stroke-width:2px,stroke-dasharray:6 4,color:#1D4ED8
+    style Cloud fill:#ECFDF5,stroke:#10B981,stroke-width:2px,stroke-dasharray:6 4,color:#047857
+    style ThirdParty fill:#F5F3FF,stroke:#8B5CF6,stroke-width:2px,stroke-dasharray:6 4,color:#6D28D9
+    linkStyle default stroke:#64748B,stroke-width:2px
 ```
 *Source: `src/supabaseClient.js`, `supabase/functions/generate-spend-story/index.ts`, `src/App.jsx`.*
 
 ### Figure 4: AI Insight Generation Sequence
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","fontSize":"14px","actorBkg":"#DBEAFE","actorBorder":"#2563EB","actorTextColor":"#0F172A","actorLineColor":"#94A3B8","signalColor":"#64748B","signalTextColor":"#64748B","labelBoxBkgColor":"#FEF3C7","labelBoxBorderColor":"#D97706","labelTextColor":"#92400E","loopTextColor":"#B45309","noteBkgColor":"#FEF3C7","noteBorderColor":"#D97706","noteTextColor":"#0F172A","activationBkgColor":"#EDE9FE","activationBorderColor":"#7C3AED","sequenceNumberColor":"#FFFFFF"},"sequence":{"mirrorActors":false,"actorMargin":60,"boxMargin":10,"messageAlign":"center"}}}%%
 sequenceDiagram
-    participant Cron as Cron/Trigger
-    participant Edge as generate-spend-story
-    participant DB as Supabase DB
-    participant OneSignal
-    
+    autonumber
+    box rgb(254,243,199) Scheduler
+        participant Cron as ⏰ Cron/Trigger
+    end
+    box rgb(209,250,229) Supabase
+        participant Edge as ⚡ generate-spend-story
+        participant DB as 🐘 Supabase DB
+    end
+    box rgb(237,233,254) Integrations
+        participant OneSignal as 🔔 OneSignal
+    end
+
     Cron->>Edge: Invoke
     Edge->>DB: Fetch 180 days txns
     DB-->>Edge: Txn array
@@ -183,7 +203,8 @@ sequenceDiagram
 
 ### Figure 5: Dependency Breakdown
 ```mermaid
-pie title Dependencies by Type
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","pie1":"#3B82F6","pie2":"#8B5CF6","pie3":"#06B6D4","pieStrokeColor":"#FFFFFF","pieStrokeWidth":"3px","pieOuterStrokeColor":"#E2E8F0","pieOuterStrokeWidth":"2px","pieSectionTextColor":"#FFFFFF","pieSectionTextSize":"16px","pieTitleTextColor":"#6366F1","pieTitleTextSize":"18px","pieLegendTextColor":"#64748B","pieLegendTextSize":"14px","pieOpacity":"1"}}}%%
+pie showData title Dependencies by Type
   "UI & React" : 3
   "Data & Utilities" : 4
   "Build & Dev" : 8
@@ -227,25 +248,44 @@ pie title Dependencies by Type
 
 ### Auth Session State
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","fontSize":"14px","primaryColor":"#DBEAFE","primaryTextColor":"#0F172A","primaryBorderColor":"#2563EB","lineColor":"#64748B","edgeLabelBackground":"#FFFFFF","transitionColor":"#64748B","transitionLabelColor":"#64748B","stateLabelColor":"#0F172A","stateBkg":"#DBEAFE","specialStateColor":"#6366F1","innerEndBackground":"#6366F1"}}}%%
 stateDiagram-v2
     [*] --> Loading
     Loading --> Unauthenticated : No Session
     Loading --> Authenticated : Session Found
     Unauthenticated --> Authenticated : Login Success
     Authenticated --> Unauthenticated : Logout
+
+    classDef pending fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#0F172A
+    classDef denied fill:#FFE4E6,stroke:#E11D48,stroke-width:2px,color:#0F172A
+    classDef granted fill:#D1FAE5,stroke:#059669,stroke-width:2px,color:#0F172A
+    class Loading pending
+    class Unauthenticated denied
+    class Authenticated granted
 ```
 *Source: `src/App.jsx`, `src/context/AuthContext.jsx`.*
 
 ### Figure 7: Component Navigation
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","fontSize":"14px","primaryColor":"#DBEAFE","primaryTextColor":"#0F172A","primaryBorderColor":"#2563EB","lineColor":"#64748B","edgeLabelBackground":"#FFFFFF","clusterBkg":"#F8FAFC","clusterBorder":"#CBD5E1"},"flowchart":{"curve":"step","nodeSpacing":45,"rankSpacing":55,"padding":14}}}%%
 flowchart TD
-    App --> Layout
-    Layout --> Dashboard
-    Layout --> History
-    Layout --> Groups
-    Layout --> Profile
-    History --> StatementReview
-    Groups --> GroupDetail
+    App["⚛️ App"] --> Layout["🧭 Layout"]
+    Layout --> Dashboard["📊 Dashboard"]
+    Layout --> History["🧾 History"]
+    Layout --> Groups["👥 Groups"]
+    Layout --> Profile["👤 Profile"]
+    History --> StatementReview["🔍 StatementReview"]
+    Groups --> GroupDetail["📂 GroupDetail"]
+
+    classDef root fill:#EDE9FE,stroke:#7C3AED,stroke-width:2px,color:#0F172A
+    classDef shell fill:#CFFAFE,stroke:#0891B2,stroke-width:2px,color:#0F172A
+    classDef page fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#0F172A
+    classDef sub fill:#D1FAE5,stroke:#059669,stroke-width:2px,color:#0F172A
+    class App root
+    class Layout shell
+    class Dashboard,History,Groups,Profile page
+    class StatementReview,GroupDetail sub
+    linkStyle default stroke:#64748B,stroke-width:2px
 ```
 
 ---
@@ -257,6 +297,7 @@ flowchart TD
 
 ### Figure 9: Entity Relationship Diagram [INFERRED]
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","fontSize":"14px","primaryColor":"#DBEAFE","primaryTextColor":"#0F172A","primaryBorderColor":"#2563EB","lineColor":"#64748B","secondaryColor":"#EFF6FF","tertiaryColor":"#FFFFFF","attributeBackgroundColorOdd":"#FFFFFF","attributeBackgroundColorEven":"#EFF6FF","relationColor":"#64748B","relationLabelBackground":"#FFFFFF","edgeLabelBackground":"#FFFFFF","labelBackground":"#FFFFFF","relationLabelColor":"#0F172A"},"er":{"layoutDirection":"LR","entityPadding":18,"fontSize":14}}}%%
 erDiagram
     PROFILES ||--o{ ACCOUNTS : owns
     PROFILES ||--o{ TRANSACTIONS : owns
@@ -289,16 +330,27 @@ erDiagram
 
 ### Figure 10: Logic Flowchart
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","fontSize":"14px","primaryColor":"#DBEAFE","primaryTextColor":"#0F172A","primaryBorderColor":"#2563EB","lineColor":"#64748B","edgeLabelBackground":"#FFFFFF","clusterBkg":"#F8FAFC","clusterBorder":"#CBD5E1"},"flowchart":{"curve":"step","nodeSpacing":45,"rankSpacing":55,"padding":14}}}%%
 flowchart TD
-    A[Fetch Users] --> B[Loop User]
-    B --> C[Fetch 180 Days Txns]
-    C --> D{Txns > 10 in week?}
+    A["👥 Fetch Users"] --> B["🔁 Loop User"]
+    B --> C["🗄️ Fetch 180 Days Txns"]
+    C --> D{"Txns > 10 in week?"}
     D -- No --> B
-    D -- Yes --> E[detectDeepInsights]
-    E --> F{Spike / Creep?}
-    F -- Yes --> G[Upsert to insights]
-    G --> H[sendPushNotification]
+    D -- Yes --> E["🧠 detectDeepInsights"]
+    E --> F{"Spike / Creep?"}
+    F -- Yes --> G["💾 Upsert to insights"]
+    G --> H["🔔 sendPushNotification"]
     H --> B
+
+    classDef loop fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#0F172A
+    classDef decision fill:#FEF3C7,stroke:#D97706,stroke-width:2px,color:#0F172A
+    classDef compute fill:#EDE9FE,stroke:#7C3AED,stroke-width:2px,color:#0F172A
+    classDef output fill:#D1FAE5,stroke:#059669,stroke-width:2px,color:#0F172A
+    class A,B,C loop
+    class D,F decision
+    class E compute
+    class G,H output
+    linkStyle default stroke:#64748B,stroke-width:2px
 ```
 *Source: `supabase/functions/generate-spend-story/index.ts`.*
 
@@ -339,22 +391,28 @@ Both calls run in the browser, read `VITE_GEMINI_API_KEY` via `import.meta.env`,
 
 ### Figure 11: LLM Prompt Flow
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Inter, Segoe UI, Helvetica Neue, Arial, sans-serif","fontSize":"14px","actorBkg":"#DBEAFE","actorBorder":"#2563EB","actorTextColor":"#0F172A","actorLineColor":"#94A3B8","signalColor":"#64748B","signalTextColor":"#64748B","labelBoxBkgColor":"#FEF3C7","labelBoxBorderColor":"#D97706","labelTextColor":"#92400E","loopTextColor":"#B45309","noteBkgColor":"#FEF3C7","noteBorderColor":"#D97706","noteTextColor":"#0F172A","activationBkgColor":"#EDE9FE","activationBorderColor":"#7C3AED","sequenceNumberColor":"#FFFFFF"},"sequence":{"mirrorActors":false,"actorMargin":60,"boxMargin":10,"messageAlign":"center"}}}%%
 sequenceDiagram
-    participant U as User
-    participant UI as React (ExpenseForm / AccountsSection)
-    participant G as Gemini API
+    autonumber
+    participant U as 👤 User
+    participant UI as ⚛️ React (ExpenseForm / AccountsSection)
+    participant G as ✨ Gemini API
     U->>UI: Upload receipt image or PDF statement
     alt PDF statement
+        rect rgb(219,234,254)
         loop Each page
             UI->>UI: Render page to PNG (pdfjs-dist, 2x)
             UI->>G: generateContent(prompt, PNG)
             G-->>UI: JSON array of rows
         end
         UI->>UI: Dedup rows, show preview
+        end
     else Receipt / screenshot
+        rect rgb(209,250,229)
         UI->>G: generateContent(prompt + categories, image)
         G-->>UI: JSON object
         UI->>UI: Normalize merchant, date-confidence gate, fill form
+        end
     end
 ```
 *Source: `src/components/ExpenseForm/ExpenseForm.jsx`, `src/components/Profile/AccountsSection.jsx`.*
