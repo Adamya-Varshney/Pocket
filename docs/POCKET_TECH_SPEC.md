@@ -321,8 +321,48 @@ flowchart TD
 
 | Provider | Library | Purpose |
 | --- | --- | --- |
-| Gemini | `@google/generative-ai` | Frontend generative features (inferred usage via package.json, code not deeply scanned) |
+| Gemini | `@google/generative-ai` | Client-side vision extraction for receipts and PDF bank statements (see call sites below) |
 | Statistical ML | Manual rules | `patternDetection.ts` uses Z-Scores |
+
+### Gemini Call Sites
+Both calls run in the browser, read `VITE_GEMINI_API_KEY` via `import.meta.env`, send an image as `inlineData` with a JSON-only prompt, strip any markdown code fences from the reply, and `JSON.parse` the result.
+
+| Feature | Location | Model | Input | Output Schema | Failure Handling |
+| --- | --- | --- | --- | --- | --- |
+| Receipt / payment screenshot scan (F-05) | `src/components/ExpenseForm/ExpenseForm.jsx` → `handleSnapshotUpload` | `gemini-2.5-flash` | One uploaded image (receipt, GPay/PhonePe screen) + the user's category list for the current txn type | Object: `amount`, `date`, `dateConfidence` (0–100), `time`, `description`, `paymentMode` (one of `MODES`), `category_id` | Sets `scanError`, user enters the expense manually |
+| PDF bank statement extraction (F-05) | `src/components/Profile/AccountsSection.jsx` → `analyzePdfWithGemini` | `gemini-1.5-flash` | Each PDF page rendered by `pdfjs-dist` to a PNG at 2x scale, one request per page | Array of rows: `date`, `description`, `debit_amount`, `credit_amount`, `balance`, `reference_no` | A page that fails to parse is skipped. If no rows are found, the user is told to try a clearer scan or a CSV |
+
+### Post-Processing Rules
+- **Receipt date confidence gate**: the extracted `date` is applied only when `dateConfidence > 80`. Otherwise the form keeps its current date and an `alert()` asks the user to check it.
+- **Receipt hydration**: `description` goes through `normalizeMerchant()` with the user's `merchantOverrides`. If Gemini's `category_id` isn't one of the user's categories, it falls back to `suggestCategory()`. A `paymentMode` that isn't in `MODES` is ignored.
+- **PDF dedup within a file**: rows are keyed on `reference_no`, or on `date|description|debit|credit` when there is no reference, before reaching the shared `parsedRows` preview → import pipeline (deduplication across imports is described in §11).
+
+### Figure 11: LLM Prompt Flow
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as React (ExpenseForm / AccountsSection)
+    participant G as Gemini API
+    U->>UI: Upload receipt image or PDF statement
+    alt PDF statement
+        loop Each page
+            UI->>UI: Render page to PNG (pdfjs-dist, 2x)
+            UI->>G: generateContent(prompt, PNG)
+            G-->>UI: JSON array of rows
+        end
+        UI->>UI: Dedup rows, show preview
+    else Receipt / screenshot
+        UI->>G: generateContent(prompt + categories, image)
+        G-->>UI: JSON object
+        UI->>UI: Normalize merchant, date-confidence gate, fill form
+    end
+```
+*Source: `src/components/ExpenseForm/ExpenseForm.jsx`, `src/components/Profile/AccountsSection.jsx`.*
+
+### Risks
+- **API key exposed in the browser**: Vite inlines every `VITE_`-prefixed variable into the client bundle, so anyone who loads the app can read `VITE_GEMINI_API_KEY`. Moving these calls to a Supabase Edge Function would keep the key on the server.
+- **Model version drift**: the two call sites use different models (`gemini-2.5-flash` and `gemini-1.5-flash`). Google has been retiring the Gemini 1.5 models, so PDF extraction may fail without warning. Check that the model is still served, and consider one shared model constant.
+- **No tests or evals**: no fixtures exist to check extraction accuracy (see §17).
 
 ---
 
@@ -367,7 +407,7 @@ Uses FNV-1a hash over `userId|txnDate|description|debit|credit`.
 | --- | --- | --- |
 | Supabase DB | `@supabase/supabase-js` | `LIVE` |
 | OneSignal | REST API | `LIVE` |
-| Gemini AI | SDK | `LIVE` (via package.json) |
+| Gemini AI | SDK (client-side) | `LIVE` (`ExpenseForm.jsx`, `AccountsSection.jsx`; see §10) |
 
 ---
 
@@ -452,7 +492,7 @@ No test directories (`__tests__`, `tests/`) or frameworks (Jest, Vitest, Cypress
 
 - **Where are the schema migrations?** (Not determinable from codebase). Are they maintained in a different repo or managed strictly via the UI?
 - **How is the edge function triggered?** (Not determinable from codebase). Is there a `pg_cron` extension scheduled job in the dashboard?
-- **Where is Gemini AI actively used?** It is in `package.json`, but a surface scan did not reveal prompt files. Are they buried in a specific UI component?
+- ~~**Where is Gemini AI actively used?**~~ **Resolved**: it's used in two places, receipt scanning in `ExpenseForm.jsx` and PDF statement extraction in `AccountsSection.jsx`. Prompts are inline in those components. See §10.
 
 ---
 
