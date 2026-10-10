@@ -1,5 +1,9 @@
 # React + Vite
 
+## Documentation
+
+- [Pocket Technical Specification](docs/POCKET_TECH_SPEC.md) — architecture, data model, edge functions, feature status, and known tech debt.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
